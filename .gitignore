@@ -3,3 +3,10 @@ dist
 .env
 .env.local
 *.local
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/release/
+*.keystore
+*.jks
