@@ -7,6 +7,7 @@ import TaskCard from '../components/TaskCard'
 // ── Add Task Modal ─────────────────────────────────────────────────────────────
 function AddTaskModal({ children, familyId, onClose, onSaved, editTask }) {
   const { t } = useLang()
+  const QUICK_POINTS = [5, 10, 20, 50]
   const [title, setTitle] = useState(editTask?.title || '')
   const [description, setDescription] = useState(editTask?.description || '')
   const [criteria, setCriteria] = useState(editTask?.criteria || '')
@@ -48,72 +49,104 @@ function AddTaskModal({ children, familyId, onClose, onSaved, editTask }) {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="gradient-purple text-white px-6 pt-6 pb-4 flex justify-between items-center">
-          <h2 className="text-lg font-black">{editTask ? t.editTask : t.addTask}</h2>
+          <h2 className="text-lg font-black">{editTask ? t.editTask : '📋 Нове завдання'}</h2>
           <button onClick={onClose} className="text-white/70 hover:text-white text-2xl">✕</button>
         </div>
         <form onSubmit={handleSave} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-black text-gray-600 mb-1">{t.taskTitle}</label>
             <input value={title} onChange={e => setTitle(e.target.value)} required
-              className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold text-gray-700" placeholder={t.taskTitlePlaceholder} />
+              className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold text-gray-700" placeholder={t.taskTitlePlaceholder || 'Назва завдання'} />
           </div>
           <div>
-            <label className="block text-sm font-black text-gray-600 mb-1">{t.assignTo}</label>
-            <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold text-gray-700 bg-white">
-              {children.map(c => <option key={c.id} value={c.id}>{c.avatar_emoji} {c.display_name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-black text-gray-600 mb-1">{t.taskPoints}</label>
-            <div className="flex items-center gap-3">
-              <input type="range" min="1" max="100" value={points} onChange={e => setPoints(e.target.value)} className="flex-1 accent-violet-600" />
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white font-black text-xl rounded-2xl px-4 py-2 min-w-[72px] text-center">{points}⭐</div>
+            <label className="block text-sm font-black text-gray-600 mb-2">Для кого</label>
+            <div className="flex flex-wrap gap-2">
+              {children.map(c => (
+                <button key={c.id} type="button" onClick={() => setAssignedTo(c.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm transition-all ${assignedTo === c.id ? 'gradient-purple text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {c.avatar_emoji} {c.display_name}
+                </button>
+              ))}
             </div>
           </div>
           <div>
-            <label className="block text-sm font-black text-gray-600 mb-1">{t.taskDescription} <span className="text-gray-300 font-semibold">{t.optional}</span></label>
+            <label className="block text-sm font-black text-gray-600 mb-2">Балів ⭐</label>
+            <div className="flex gap-2 mb-2">
+              {QUICK_POINTS.map(qp => (
+                <button key={qp} type="button" onClick={() => setPoints(qp)}
+                  className={`flex-1 py-2 rounded-xl font-black text-sm transition-all ${Number(points) === qp ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{qp}</button>
+              ))}
+            </div>
+            <input type="number" min="1" max="500" value={points} onChange={e => setPoints(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold text-gray-700" />
+          </div>
+          <div>
+            <label className="block text-sm font-black text-gray-600 mb-1">{t.taskDescription || 'Опис'} <span className="text-gray-300 font-semibold">(необов'язково)</span></label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
               className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold text-gray-700 resize-none" />
           </div>
           <div>
-            <label className="block text-sm font-black text-gray-600 mb-1">{t.taskCriteria} <span className="text-gray-300 font-semibold">{t.optional}</span></label>
+            <label className="block text-sm font-black text-gray-600 mb-1">{t.taskCriteria || 'Критерії виконання'} <span className="text-gray-300 font-semibold">(необов'язково)</span></label>
             <textarea value={criteria} onChange={e => setCriteria(e.target.value)} rows={2}
               className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold text-gray-700 resize-none" />
           </div>
+          {/* Mandatory toggle */}
           <div className="bg-red-50 rounded-2xl p-4 space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" checked={isMandatory} onChange={e => setIsMandatory(e.target.checked)} className="w-5 h-5 accent-red-500 rounded" />
-              <span className="font-black text-gray-700">{t.mandatoryTask}</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <span className="font-black text-gray-700">🔴 Обов'язкове завдання</span>
+              <div onClick={() => setIsMandatory(!isMandatory)}
+                className={`w-12 h-6 rounded-full transition-all cursor-pointer ${isMandatory ? 'bg-red-500' : 'bg-gray-200'}`}>
+                <div className={`w-6 h-6 bg-white rounded-full shadow transition-all ${isMandatory ? 'translate-x-6' : ''}`} />
+              </div>
+            </div>
             {isMandatory && (
               <div>
-                <label className="block text-sm font-black text-red-500 mb-1">{t.penaltyPoints}</label>
+                <label className="block text-sm font-black text-red-500 mb-1">{t.penaltyPoints || 'Штраф балів'}</label>
                 <input type="number" min="0" max="100" value={penaltyPoints} onChange={e => setPenaltyPoints(e.target.value)}
                   className="w-full px-4 py-2 rounded-xl border-2 border-red-200 focus:border-red-400 focus:outline-none font-semibold text-gray-700" />
               </div>
             )}
           </div>
+          {/* Recurring toggle */}
           <div className="bg-blue-50 rounded-2xl p-4 space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} className="w-5 h-5 accent-blue-500 rounded" />
-              <span className="font-black text-gray-700">{t.recurringTask}</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <span className="font-black text-gray-700">📅 Повторюване завдання</span>
+              <div onClick={() => setIsRecurring(!isRecurring)}
+                className={`w-12 h-6 rounded-full transition-all cursor-pointer ${isRecurring ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                <div className={`w-6 h-6 bg-white rounded-full shadow transition-all ${isRecurring ? 'translate-x-6' : ''}`} />
+              </div>
+            </div>
             {isRecurring && (
               <div className="flex gap-2">
-                {['daily', 'weekdays', 'weekends'].map(v => (
+                {[['daily','Щодня'],['weekdays','Будні (Пн–Пт)'],['weekends','Вихідні (Сб–Нд)']].map(([v, label]) => (
                   <button key={v} type="button" onClick={() => setRecurringType(v)}
                     className={`flex-1 py-2 rounded-xl font-black text-xs transition-all ${recurringType === v ? 'bg-blue-500 text-white' : 'bg-white text-blue-500 border-2 border-blue-200'}`}>
-                    {v === 'daily' ? t.daily : v === 'weekdays' ? t.weekdays : t.weekends}
+                    {label}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <button type="submit" disabled={loading || !title.trim() || !assignedTo}
-            className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl shadow active:scale-95 transition-all disabled:opacity-50 text-lg">
-            {loading ? '...' : (editTask ? t.saveChanges : t.createTask)}
-          </button>
+          {/* Reminders */}
+          <div className="bg-yellow-50 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-black text-gray-700">🔔 Нагадування</span>
+            </div>
+            <button type="button"
+              className="w-full py-2.5 rounded-xl font-black text-sm bg-white border-2 border-yellow-200 text-yellow-600 hover:bg-yellow-50">
+              Увімкнути сповіщення
+            </button>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-3.5 rounded-2xl font-black border-2 border-gray-200 text-gray-500 hover:bg-gray-50">
+              Скасувати
+            </button>
+            <button type="submit" disabled={loading || !title.trim() || !assignedTo}
+              className="flex-1 gradient-purple text-white font-black py-3.5 rounded-2xl shadow active:scale-95 transition-all disabled:opacity-50">
+              {loading ? '...' : '🚀 Створити!'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -123,16 +156,19 @@ function AddTaskModal({ children, familyId, onClose, onSaved, editTask }) {
 // ── Add Reward Modal ───────────────────────────────────────────────────────────
 function AddRewardModal({ familyId, onClose, onSaved, editReward }) {
   const { t } = useLang()
-  const EMOJIS = ['🎁','🎮','🍕','🍦','🎬','🎪','🚀','🧸','🎨','📚','🎭','🏆','🎯','🎸']
+  const EMOJIS = ['🎮','🍕','🎬','🎡','🎪','🍦','🎯','🎨','📚','🛍️','🎠','🌟','🍔','🎂','🏀','⚽','🎵','🧸','🦄','🚀','🎁']
+  const CATEGORIES = ['Розваги','Їжа','Враження','Екрани','Творчість','Спорт','Читання','Інше']
+  const QUICK_COSTS = [20, 50, 100, 200]
   const [title, setTitle] = useState(editReward?.title || '')
   const [emoji, setEmoji] = useState(editReward?.emoji || '🎁')
   const [points, setPoints] = useState(editReward?.points_cost ?? 50)
+  const [category, setCategory] = useState(editReward?.category || '')
   const [loading, setLoading] = useState(false)
 
   const handleSave = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const payload = { title: title.trim(), emoji, points_cost: Number(points), family_id: familyId, active: true }
+    const payload = { title: title.trim(), emoji, points_cost: Number(points), family_id: familyId, active: true, category }
     if (editReward) {
       await supabase.from('rewards').update(payload).eq('id', editReward.id)
     } else {
@@ -144,19 +180,28 @@ function AddRewardModal({ familyId, onClose, onSaved, editReward }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="bg-gradient-to-r from-orange-400 to-pink-500 text-white px-6 pt-6 pb-4 flex justify-between items-center">
-          <h2 className="text-lg font-black">{editReward ? t.editReward : t.addReward}</h2>
+          <h2 className="text-lg font-black">{editReward ? t.editReward : '🎁 Додати приз'}</h2>
           <button onClick={onClose} className="text-white/70 hover:text-white text-2xl">✕</button>
         </div>
         <form onSubmit={handleSave} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-black text-gray-600 mb-1">{t.rewardTitle}</label>
+            <label className="block text-sm font-black text-gray-600 mb-1">Назва призу</label>
             <input value={title} onChange={e => setTitle(e.target.value)} required
               className="w-full px-4 py-2.5 rounded-2xl border-2 border-orange-200 focus:border-orange-400 focus:outline-none font-semibold text-gray-700" />
           </div>
           <div>
-            <label className="block text-sm font-black text-gray-600 mb-2">{t.rewardEmoji}</label>
+            <label className="block text-sm font-black text-gray-600 mb-2">Категорія</label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map(cat => (
+                <button key={cat} type="button" onClick={() => setCategory(cat)}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-sm transition-all ${category === cat ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{cat}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-black text-gray-600 mb-2">Емодзі</label>
             <div className="flex flex-wrap gap-2">
               {EMOJIS.map(em => (
                 <button key={em} type="button" onClick={() => setEmoji(em)}
@@ -165,15 +210,22 @@ function AddRewardModal({ familyId, onClose, onSaved, editReward }) {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-black text-gray-600 mb-1">{t.rewardCost}</label>
+            <label className="block text-sm font-black text-gray-600 mb-2">Вартість ⭐</label>
+            <div className="flex gap-2 mb-2">
+              {QUICK_COSTS.map(qp => (
+                <button key={qp} type="button" onClick={() => setPoints(qp)}
+                  className={`flex-1 py-2 rounded-xl font-black text-sm transition-all ${Number(points) === qp ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{qp}</button>
+              ))}
+            </div>
             <div className="flex items-center gap-3">
-              <input type="range" min="5" max="500" step="5" value={points} onChange={e => setPoints(e.target.value)} className="flex-1 accent-orange-500" />
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white font-black text-xl rounded-2xl px-4 py-2 min-w-[80px] text-center">{points}⭐</div>
+              <input type="number" min="5" max="1000" value={points} onChange={e => setPoints(e.target.value)}
+                className="flex-1 px-4 py-2.5 rounded-2xl border-2 border-orange-200 focus:border-orange-400 focus:outline-none font-bold text-gray-700" />
+              <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white font-black rounded-2xl px-4 py-2 min-w-[80px] text-center">{points}⭐</div>
             </div>
           </div>
           <button type="submit" disabled={loading || !title.trim()}
             className="w-full bg-gradient-to-r from-orange-400 to-pink-500 text-white font-black py-3.5 rounded-2xl shadow active:scale-95 transition-all disabled:opacity-50 text-lg">
-            {loading ? '...' : (editReward ? t.saveChanges : t.addReward)}
+            {loading ? '...' : (editReward ? t.saveChanges : '🎁 Додати!')}
           </button>
         </form>
       </div>
@@ -261,7 +313,7 @@ function AddChallengeModal({ children, familyId, onClose, onSaved }) {
   const [assignedTo, setAssignedTo] = useState(children[0]?.id || '')
   const [subTasks, setSubTasks] = useState([{ title: '', points: 10 }])
   const [loading, setLoading] = useState(false)
-  const EMOJIS = ['🏆','🌟','⭐','🎯','🚀','💪','🧩','🎪','🌈','🦁','🔥','💡']
+  const EMOJIS = ['🏆','🎯','💪','🐱','⚽','✏️','📚','🎸','🎵','🚴','🏊','🤸','🌟','🦁','🚀','🎮']
 
   const addSubTask = () => setSubTasks(prev => [...prev, { title: '', points: 10 }])
   const updateSubTask = (i, field, val) => setSubTasks(prev => prev.map((st, idx) => idx === i ? { ...st, [field]: val } : st))
@@ -643,21 +695,31 @@ export default function ParentDashboard() {
       {/* Header */}
       <div className="gradient-purple text-white px-4 pt-5 pb-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full translate-x-1/2 -translate-y-1/2" />
-        <div className="relative flex justify-between items-start">
+        <div className="relative flex justify-between items-start mb-4">
           <div>
             <p className="text-violet-200 font-semibold text-sm">{t.parentPanel || 'Панель батьків'}</p>
             <h1 className="text-2xl font-black">{user.avatar_emoji} {user.display_name}</h1>
-            {pendingTasks.length > 0 && (
-              <div className="mt-1 bg-yellow-400 text-yellow-900 text-xs font-black px-3 py-1 rounded-full inline-block animate-pulse">
-                ⏳ {pendingTasks.length} на перевірці
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher light />
             <button onClick={logout} className="text-violet-200 hover:text-white text-sm font-bold bg-white/10 px-3 py-1.5 rounded-full">
               {t.logout || 'Вийти'}
             </button>
+          </div>
+        </div>
+        {/* Stat tiles */}
+        <div className="relative grid grid-cols-3 gap-2">
+          <div className="bg-white/20 rounded-2xl p-3 text-center">
+            <div className="text-2xl font-black">{pendingTasks.length}</div>
+            <div className="text-xs text-violet-100 font-semibold">на перевірці</div>
+          </div>
+          <div className="bg-white/20 rounded-2xl p-3 text-center">
+            <div className="text-2xl font-black">{activeTasks.length}</div>
+            <div className="text-xs text-violet-100 font-semibold">активних</div>
+          </div>
+          <div className="bg-white/20 rounded-2xl p-3 text-center">
+            <div className="text-2xl font-black">{doneTasks.length}</div>
+            <div className="text-xs text-violet-100 font-semibold">готово</div>
           </div>
         </div>
       </div>
@@ -691,83 +753,130 @@ export default function ParentDashboard() {
               + {t.addTask || 'Додати завдання'}
             </button>
 
-            {/* Sub-tabs */}
+            {/* Sub-tabs — only 2 */}
             <div className="flex bg-gray-100 rounded-2xl p-1">
-              {['active', 'recurring', 'pending', 'done'].map(st => (
+              {['active', 'recurring'].map(st => (
                 <button key={st} onClick={() => setTaskSubTab(st)}
                   className={`flex-1 py-2 rounded-xl font-black text-xs transition-all ${taskSubTab === st ? 'bg-white text-violet-700 shadow' : 'text-gray-400'}`}>
-                  {st === 'active' ? '📋 Активні' : st === 'recurring' ? '🔄 Регулярні' : st === 'pending' ? `⏳ (${pendingTasks.length})` : '✅ Виконані'}
+                  {st === 'active' ? `📋 Активні${pendingTasks.length > 0 ? ` (${pendingTasks.length})` : ''}` : `🔄 Регулярні${recurringTasks.length > 0 ? ` (${recurringTasks.length})` : ''}`}
                 </button>
               ))}
             </div>
 
-            {/* Pending — needs approval */}
-            {taskSubTab === 'pending' && (
-              <>
-                {pendingTasks.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="text-5xl mb-3">✅</div>
-                    <p className="font-bold text-gray-400">Немає завдань на перевірці</p>
-                  </div>
-                )}
-                <div className="space-y-3">
-                  {pendingTasks.map(task => {
-                    const child = children.find(c => c.id === task.assigned_to)
-                    return (
-                      <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-yellow-400">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-black text-gray-800">{task.title}</div>
-                            <div className="text-sm text-gray-500">{child?.avatar_emoji} {child?.display_name}</div>
-                            <div className="text-violet-600 font-black text-sm mt-1">+{task.points} ⭐</div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 mt-3">
-                          <button onClick={() => handleApproveTask(task.id, task.assigned_to, task.points)}
-                            className="flex-1 bg-green-500 text-white font-black py-2.5 rounded-xl text-sm">
-                            ✅ Підтвердити
-                          </button>
-                          <button onClick={() => handleRejectTask(task.id)}
-                            className="flex-1 bg-red-100 text-red-500 font-black py-2.5 rounded-xl text-sm">
-                            ❌ Відхилити
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            {/* Active tasks */}
+            {/* Active tab — contains pending + active + done sections */}
             {taskSubTab === 'active' && (
               <>
-                {activeTasks.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="text-5xl mb-3">📋</div>
-                    <p className="font-bold text-gray-400">Активних завдань немає</p>
+                {/* Pending approval section */}
+                {pendingTasks.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2 mt-1">
+                      <span className="font-black text-orange-600 text-sm">⏳ Чекають перевірки ({pendingTasks.length})</span>
+                    </div>
+                    <div className="space-y-3">
+                      {pendingTasks.map(task => {
+                        const child = children.find(c => c.id === task.assigned_to)
+                        return (
+                          <div key={task.id} className="bg-white rounded-2xl shadow-sm border-l-4 border-orange-400 overflow-hidden">
+                            <div className="p-4">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="bg-violet-100 text-violet-700 font-black text-xs px-2 py-0.5 rounded-full">{child?.avatar_emoji} {child?.display_name}</span>
+                                    {task.is_recurring && <span className="bg-blue-100 text-blue-600 font-bold text-xs px-2 py-0.5 rounded-full">щодня</span>}
+                                  </div>
+                                  <div className="font-black text-gray-800">{task.title}</div>
+                                </div>
+                                <div className="bg-orange-400 text-white font-black text-xs w-10 h-10 rounded-full flex items-center justify-center ml-2 shrink-0">
+                                  +{task.points}
+                                </div>
+                              </div>
+                              <div className="flex gap-2 mt-3">
+                                <button onClick={() => handleApproveTask(task.id, task.assigned_to, task.points)}
+                                  className="flex-1 bg-green-500 text-white font-black py-2 rounded-xl text-sm active:scale-95">
+                                  ✅ Прийняти
+                                </button>
+                                <button onClick={() => handleRejectTask(task.id)}
+                                  className="flex-1 bg-orange-100 text-orange-600 font-black py-2 rounded-xl text-sm active:scale-95">
+                                  ↩️ Повернути
+                                </button>
+                                <button onClick={() => setEditTask(task)} className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-xl text-sm shrink-0">✏️</button>
+                                <button onClick={() => handleDeleteTask(task.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 rounded-xl text-sm text-red-400 shrink-0">🗑️</button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
-                <div className="space-y-3">
-                  {activeTasks.map(task => {
-                    const child = children.find(c => c.id === task.assigned_to)
-                    return (
-                      <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="font-black text-gray-800">{task.title}</div>
-                            {task.is_mandatory && <span className="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">Обов'язкове</span>}
-                            <div className="text-sm text-gray-500 mt-1">{child?.avatar_emoji} {child?.display_name} · {task.points} ⭐</div>
+
+                {/* Active tasks section */}
+                <div>
+                  {pendingTasks.length > 0 && (
+                    <div className="flex items-center gap-2 mb-2 mt-2">
+                      <span className="font-black text-gray-600 text-sm">● Активні завдання ({activeTasks.length})</span>
+                    </div>
+                  )}
+                  {activeTasks.length === 0 && pendingTasks.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-3">📋</div>
+                      <p className="font-bold text-gray-400">Завдань поки немає</p>
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {activeTasks.map(task => {
+                      const child = children.find(c => c.id === task.assigned_to)
+                      return (
+                        <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="bg-violet-100 text-violet-700 font-black text-xs px-2 py-0.5 rounded-full">{child?.avatar_emoji} {child?.display_name}</span>
+                                {task.is_mandatory && <span className="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">Обов'язкове</span>}
+                              </div>
+                              <div className="font-black text-gray-800">{task.title}</div>
+                              <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full mt-1 inline-block">● Активно</span>
+                            </div>
+                            <div className="flex items-start gap-1 ml-2">
+                              <div className="bg-orange-400 text-white font-black text-xs w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                                +{task.points}
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex gap-1 ml-2">
-                            <button onClick={() => setEditTask(task)} className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-xl text-sm">✏️</button>
-                            <button onClick={() => handleDeleteTask(task.id)} className="w-8 h-8 flex items-center justify-center bg-red-50 rounded-xl text-sm text-red-400">🗑️</button>
+                          <div className="flex gap-1 mt-2">
+                            <button onClick={() => setEditTask(task)} className="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-xl text-sm">✏️</button>
+                            <button onClick={() => handleDeleteTask(task.id)} className="w-9 h-9 flex items-center justify-center bg-red-50 rounded-xl text-sm text-red-400">🗑️</button>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
+
+                {/* Done section */}
+                {doneTasks.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2 mt-2">
+                      <span className="font-black text-green-600 text-sm">✅ Виконані ({doneTasks.length})</span>
+                    </div>
+                    <div className="space-y-2 opacity-80">
+                      {doneTasks.slice(0, 20).map(task => {
+                        const child = children.find(c => c.id === task.assigned_to)
+                        return (
+                          <div key={task.id} className="bg-white rounded-2xl p-3 shadow-sm">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="font-black text-gray-700 text-sm">{task.title}</div>
+                                <div className="text-xs text-gray-400">{child?.avatar_emoji} {child?.display_name}</div>
+                              </div>
+                              <span className="text-green-500 font-black text-sm">✅ +{task.points}⭐</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -789,8 +898,11 @@ export default function ParentDashboard() {
                       <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-blue-400">
                         <div className="flex justify-between items-start mb-2">
                           <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="bg-violet-100 text-violet-700 font-black text-xs px-2 py-0.5 rounded-full">{child?.avatar_emoji} {child?.display_name}</span>
+                            </div>
                             <div className="font-black text-gray-800">{task.title}</div>
-                            <div className="text-sm text-gray-500">{child?.avatar_emoji} {child?.display_name} · {task.points} ⭐</div>
+                            <div className="text-sm text-orange-500 font-bold mt-0.5">⭐ {task.points}</div>
                           </div>
                           <div className="flex gap-1">
                             <button onClick={() => setEditTask(task)} className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-xl text-sm">✏️</button>
@@ -804,34 +916,6 @@ export default function ParentDashboard() {
                               {d}
                             </div>
                           ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            {/* Done tasks */}
-            {taskSubTab === 'done' && (
-              <>
-                {doneTasks.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="text-5xl mb-3">🎉</div>
-                    <p className="font-bold text-gray-400">Виконаних завдань ще немає</p>
-                  </div>
-                )}
-                <div className="space-y-3 opacity-80">
-                  {doneTasks.slice(0, 30).map(task => {
-                    const child = children.find(c => c.id === task.assigned_to)
-                    return (
-                      <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <div className="font-black text-gray-700">{task.title}</div>
-                            <div className="text-sm text-gray-400">{child?.avatar_emoji} {child?.display_name}</div>
-                          </div>
-                          <span className="text-green-500 font-black text-sm">✅ +{task.points} ⭐</span>
                         </div>
                       </div>
                     )
@@ -978,18 +1062,32 @@ export default function ParentDashboard() {
                       <div className="text-sm text-gray-500">
                         {p.users?.avatar_emoji} {p.users?.display_name} · {new Date(p.purchased_at).toLocaleDateString('uk-UA')}
                       </div>
-                      <div className="text-orange-500 font-black text-sm">⭐ {p.points_spent}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-orange-500 font-black text-sm">⭐ {p.points_spent}</div>
+                        {p.status !== 'refunded' && (
+                          <span className="bg-green-100 text-green-700 font-bold text-xs px-2 py-0.5 rounded-full">Активно</span>
+                        )}
+                      </div>
                     </div>
-                    {p.status !== 'refunded' && (
-                      <button onClick={() => handleRefundPurchase(p)}
-                        className="bg-red-50 text-red-400 font-black text-xs px-3 py-2 rounded-xl">
-                        Повернути ⭐
-                      </button>
-                    )}
-                    {p.status === 'refunded' && (
-                      <span className="text-gray-400 text-xs font-bold">Повернуто</span>
-                    )}
                   </div>
+                  {p.status !== 'refunded' ? (
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => {
+                        const d = new Date(p.purchased_at)
+                        const text = `🧾 ЧЕК НА ПРИЗ\n📅 Дата: ${d.toLocaleDateString('uk-UA')}\n⏰ Час: ${d.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' })}\n👤 Хто: ${p.users?.avatar_emoji} ${p.users?.display_name}\n🎁 ${p.rewards?.title}\nВитрачено: −⭐${p.points_spent}`
+                        navigator.clipboard?.writeText(text).catch(() => {})
+                        alert(text)
+                      }} className="flex-1 bg-violet-50 text-violet-700 font-black text-sm py-2 rounded-xl active:scale-95">
+                        🧾 Чек
+                      </button>
+                      <button onClick={() => handleRefundPurchase(p)}
+                        className="flex-1 bg-orange-50 text-orange-600 font-black text-sm py-2 rounded-xl active:scale-95">
+                        ↩️ Повернути бали
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-gray-400 text-xs font-bold text-center">↩️ Повернуто</div>
+                  )}
                 </div>
               ))}
             </div>

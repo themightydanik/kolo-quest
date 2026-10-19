@@ -8,7 +8,7 @@ import TaskCard from '../components/TaskCard'
 const LEVELS = [
   { name: 'Початківець', min: 0, max: 99, emoji: '🌱' },
   { name: 'Зірка', min: 100, max: 299, emoji: '⭐' },
-  { name: 'Герой', min: 300, max: 699, emoji: '🦸' },
+  { name: 'Герой', min: 300, max: 699, emoji: '🚀' },
   { name: 'Чемпіон', min: 700, max: 1499, emoji: '🏆' },
   { name: 'Легенда', min: 1500, max: Infinity, emoji: '👑' },
 ]
@@ -27,15 +27,15 @@ function getLevelProgress(totalEarned) {
 
 // ─── Achievements ─────────────────────────────────────────────────────────────
 const ACHIEVEMENTS = [
-  { id: 'first_step', emoji: '👣', name: 'Перший крок', desc: 'Виконай перше завдання' },
+  { id: 'first_step', emoji: '🎯', name: 'Перший крок', desc: 'Виконай перше завдання' },
   { id: '7_days', emoji: '🔥', name: '7 днів поспіль', desc: 'Виконуй завдання 7 днів підряд' },
-  { id: 'star_collector', emoji: '🌟', name: 'Збирач зірок', desc: 'Набери 100 зірок' },
-  { id: 'treasure', emoji: '💰', name: 'Скарбник', desc: 'Набери 500 зірок' },
-  { id: 'first_challenge', emoji: '⚔️', name: 'Перший челендж', desc: 'Виконай перший челендж' },
-  { id: 'first_purchase', emoji: '🛒', name: 'Перша покупка', desc: 'Купи перший приз' },
-  { id: 'first_exchange', emoji: '💸', name: 'Перший обмін', desc: 'Обміняй зірки на гроші' },
-  { id: 'hardworker', emoji: '💪', name: 'Працьовитий', desc: 'Виконай 10 завдань' },
-  { id: 'champion', emoji: '🏆', name: 'Чемпіон батлу', desc: 'Перемогти у батлі' },
+  { id: 'star_collector', emoji: '⭐', name: 'Збирач зірок', desc: 'Набери 100 зірок' },
+  { id: 'treasure', emoji: '💎', name: 'Скарбник', desc: 'Набери 500 зірок' },
+  { id: 'first_challenge', emoji: '🏆', name: 'Перший челендж', desc: 'Виконай перший челендж' },
+  { id: 'first_purchase', emoji: '📦', name: 'Перша покупка', desc: 'Купи перший приз' },
+  { id: 'first_exchange', emoji: '💵', name: 'Перший обмін', desc: 'Обміняй зірки на гроші' },
+  { id: 'hardworker', emoji: '📋', name: 'Працьовитий', desc: 'Виконай 10 завдань' },
+  { id: 'champion', emoji: '🥊', name: 'Чемпіон батлу', desc: 'Перемогти у батлі' },
   { id: 'legend', emoji: '👑', name: 'Легенда', desc: 'Досягни рівня Легенда' },
 ]
 
@@ -43,7 +43,7 @@ const AVATARS = ['🦊', '🐼', '🦁', '🐯', '🐸', '🐙', '🦋', '🐬',
 
 // ─── Countdown overlay ────────────────────────────────────────────────────────
 function CountdownOverlay({ task, onConfirm, onCancel }) {
-  const [count, setCount] = useState(5)
+  const [count, setCount] = useState(3)
   useEffect(() => {
     if (count <= 0) { onConfirm(); return }
     const t = setTimeout(() => setCount(c => c - 1), 1000)
@@ -57,7 +57,7 @@ function CountdownOverlay({ task, onConfirm, onCancel }) {
         <div className="font-black text-violet-600 mb-4">+{task.points} ⭐</div>
         <div className="bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
           <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500 transition-all duration-1000"
-            style={{ width: `${(count / 5) * 100}%` }} />
+            style={{ width: `${(count / 3) * 100}%` }} />
         </div>
         <p className="text-sm text-gray-500 mb-4">Підтвердження через {count}...</p>
         <button onClick={onCancel}
@@ -72,22 +72,37 @@ function CountdownOverlay({ task, onConfirm, onCancel }) {
 // ─── Purchase modal ───────────────────────────────────────────────────────────
 function PurchaseModal({ reward, points, onConfirm, onCancel }) {
   const canAfford = points >= reward.points_cost
+  const remaining = points - reward.points_cost
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
-        <div className="text-5xl mb-3">{reward.emoji || '🎁'}</div>
-        <div className="font-black text-lg text-gray-800 mb-1">{reward.title}</div>
-        {reward.description && <p className="text-sm text-gray-500 mb-3">{reward.description}</p>}
-        <div className="bg-orange-50 rounded-2xl p-4 mb-4">
-          <div className="text-orange-600 font-black text-2xl">⭐ {reward.points_cost}</div>
-          <div className="text-orange-400 text-sm">вартість призу</div>
+      <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl">
+        <div className="bg-gradient-to-r from-orange-400 to-pink-500 p-6 text-center text-white">
+          <div className="text-5xl mb-2">{reward.emoji || '🎁'}</div>
+          <div className="font-black text-xl">{reward.title}</div>
+          {reward.description && <p className="text-sm text-orange-100 mt-1">{reward.description}</p>}
         </div>
-        <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 bg-gray-100 text-gray-600 font-black py-3 rounded-2xl">Скасувати</button>
-          <button onClick={onConfirm} disabled={!canAfford}
-            className={`flex-1 font-black py-3 rounded-2xl ${canAfford ? 'gradient-purple text-white' : 'bg-gray-100 text-gray-400'}`}>
-            {canAfford ? '🛒 Купити' : 'Недостатньо ⭐'}
-          </button>
+        <div className="p-5">
+          <div className="bg-gray-50 rounded-2xl overflow-hidden mb-4">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+              <span className="text-gray-500 font-semibold">Твої бали</span>
+              <span className="font-black text-gray-800">⭐{points}</span>
+            </div>
+            <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+              <span className="text-gray-500 font-semibold">Вартість</span>
+              <span className="font-black text-orange-500">−⭐{reward.points_cost}</span>
+            </div>
+            <div className="flex justify-between items-center px-4 py-3">
+              <span className="text-gray-500 font-semibold">Залишиться</span>
+              <span className={`font-black ${canAfford ? 'text-green-600' : 'text-red-500'}`}>⭐{remaining}</span>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onCancel} className="flex-1 bg-gray-100 text-gray-600 font-black py-3 rounded-2xl">Назад</button>
+            <button onClick={onConfirm} disabled={!canAfford}
+              className={`flex-1 font-black py-3 rounded-2xl ${canAfford ? 'bg-gradient-to-r from-orange-400 to-pink-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+              {canAfford ? '🛒 Купити!' : 'Мало ⭐'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -95,29 +110,73 @@ function PurchaseModal({ reward, points, onConfirm, onCancel }) {
 }
 
 // ─── Receipt modal ────────────────────────────────────────────────────────────
-function ReceiptModal({ purchase, onClose }) {
+function ReceiptModal({ purchase, childName, childEmoji, pointsAfter, onClose }) {
+  const d = new Date(purchase.purchased_at)
+  const dateStr = d.toLocaleDateString('uk-UA')
+  const timeStr = d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+  const receiptText = `🧾 ЧЕК НА ПРИЗ\n📅 Дата: ${dateStr}\n⏰ Час: ${timeStr}\n👤 Хто: ${childEmoji || ''} ${childName || ''}\n${purchase.rewards?.emoji || '🎁'} ${purchase.rewards?.title}\nВитрачено: −⭐${purchase.points_spent}\nЗалишок: ⭐${pointsAfter ?? ''}`
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
-        <div className="text-center mb-4">
-          <div className="text-5xl mb-2">🧾</div>
-          <h3 className="font-black text-lg text-gray-800">Чек покупки</h3>
+      <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-teal-400 to-green-500 p-6 text-center text-white">
+          <div className="text-5xl mb-2">🎉</div>
+          <div className="font-black text-xl">Ура! Куплено!</div>
+          <div className="text-teal-100 text-sm font-semibold">Покажи чек батькам</div>
         </div>
-        <div className="bg-gray-50 rounded-2xl p-4 space-y-2 mb-4">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Приз</span>
-            <span className="font-black">{purchase.rewards?.emoji} {purchase.rewards?.title}</span>
+        {/* Receipt body */}
+        <div className="p-5">
+          <div className="bg-gray-50 rounded-2xl overflow-hidden mb-4">
+            <div className="text-center py-3 border-b border-dashed border-gray-200">
+              <span className="font-black text-gray-700 text-sm tracking-wider">📅 ЧЕК НА ПРИЗ</span>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">📅 Дата:</span>
+                <span className="font-bold">{dateStr}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">⏰ Час:</span>
+                <span className="font-bold">{timeStr}</span>
+              </div>
+              {(childName || childEmoji) && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">👤 Хто:</span>
+                  <span className="font-bold">{childEmoji} {childName}</span>
+                </div>
+              )}
+              <div className="border-t border-dashed border-gray-200 pt-2 mt-2">
+                <div className="font-black text-gray-800 text-center">{purchase.rewards?.emoji || '🎁'} {purchase.rewards?.title}</div>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Витрачено:</span>
+                <span className="font-black text-orange-500">−⭐{purchase.points_spent}</span>
+              </div>
+              {pointsAfter !== undefined && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Залишок:</span>
+                  <span className="font-black text-green-600">⭐{pointsAfter}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Витрачено</span>
-            <span className="font-black text-orange-500">⭐ {purchase.points_spent}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Дата</span>
-            <span className="font-black text-sm">{new Date(purchase.purchased_at).toLocaleDateString('uk-UA')}</span>
+          <div className="text-xs text-gray-500 font-semibold mb-3 text-center">Надіслати батькам:</div>
+          <div className="space-y-2">
+            <button onClick={() => { navigator.share ? navigator.share({ text: receiptText }) : navigator.clipboard?.writeText(receiptText) }}
+              className="w-full bg-violet-600 text-white font-black py-3 rounded-2xl active:scale-95">
+              📤 Поділитися
+            </button>
+            <button onClick={() => navigator.clipboard?.writeText(receiptText).then(() => alert('Скопійовано!'))}
+              className="w-full bg-white border-2 border-gray-200 text-gray-700 font-black py-3 rounded-2xl active:scale-95">
+              📋 Скопіювати чек
+            </button>
+            <button onClick={onClose}
+              className="w-full bg-gradient-to-r from-pink-400 to-pink-500 text-white font-black py-3 rounded-2xl active:scale-95">
+              Закрити
+            </button>
           </div>
         </div>
-        <button onClick={onClose} className="w-full gradient-purple text-white font-black py-3 rounded-2xl">Закрити</button>
       </div>
     </div>
   )
@@ -162,6 +221,7 @@ export default function ChildDashboard() {
   const [battleCode, setBattleCode] = useState('')
   const [battleJoinCode, setBattleJoinCode] = useState('')
   const [battleLoading, setBattleLoading] = useState(false)
+  const [battleSubTab, setBattleSubTab] = useState('new')
 
   // Money exchange
   const [exchangeAmount, setExchangeAmount] = useState(null)
@@ -391,7 +451,13 @@ export default function ChildDashboard() {
         />
       )}
       {receiptPurchase && (
-        <ReceiptModal purchase={receiptPurchase} onClose={() => setReceiptPurchase(null)} />
+        <ReceiptModal
+          purchase={receiptPurchase}
+          childName={user.display_name}
+          childEmoji={user.avatar_emoji}
+          pointsAfter={points}
+          onClose={() => setReceiptPurchase(null)}
+        />
       )}
 
       {/* Header */}
@@ -550,18 +616,9 @@ export default function ChildDashboard() {
 
             {taskSubTab === 'recurring' && (
               <>
-                <div className="bg-violet-50 rounded-2xl p-3 text-violet-700 text-sm font-semibold">
-                  🔄 Регулярні завдання оновлюються автоматично за розкладом
-                </div>
-
-                {/* Day buttons */}
-                <div className="flex gap-1 justify-between">
-                  {dayLabels.map((d, i) => (
-                    <div key={i}
-                      className={`flex-1 py-2 rounded-xl text-center font-black text-xs ${i === today ? 'gradient-purple text-white' : 'bg-gray-100 text-gray-400'}`}>
-                      {d}
-                    </div>
-                  ))}
+                <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4 text-violet-700 text-sm font-semibold flex items-start gap-2">
+                  <span className="text-xl">🔄</span>
+                  <span>Регулярні завдання автоматично відновлюються за розкладом кожен день</span>
                 </div>
 
                 {recurringTasks.length === 0 && (
@@ -572,25 +629,52 @@ export default function ChildDashboard() {
                 )}
 
                 <div className="space-y-3">
-                  {recurringTasks.map(task => (
-                    <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
-                      <div className="flex justify-between items-start">
-                        <div className="font-black text-gray-800">{task.title}</div>
-                        <span className="text-violet-600 font-black text-sm">+{task.points} ⭐</span>
+                  {recurringTasks.map(task => {
+                    // completions count from title/metadata if available
+                    const completions = task.completions_count || 0
+                    return (
+                      <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">🔄</span>
+                            <div className="font-black text-gray-800">{task.title}</div>
+                          </div>
+                          <div className="text-right">
+                            {completions > 0 && (
+                              <div className="text-xs text-gray-400 font-semibold">{completions} виконань</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 font-semibold mb-2">
+                          {task.recurrence_type === 'daily' ? 'щодня' : task.recurrence_type === 'weekdays' ? 'будні' : task.recurrence_type === 'weekends' ? 'вихідні' : 'щодня'} · ⭐{task.points}
+                        </div>
+                        {/* Day chips */}
+                        <div className="flex gap-1 mb-3">
+                          {dayLabels.map((d, i) => {
+                            const isToday = i === today
+                            return (
+                              <div key={i}
+                                className={`flex-1 py-1.5 rounded-lg text-center font-black text-xs transition-all ${isToday ? 'gradient-purple text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                {d}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {task.status === 'done' && (
+                          <div className="text-green-500 font-black text-sm">✅ Виконано сьогодні</div>
+                        )}
+                        {task.status === 'pending_approval' && (
+                          <div className="text-yellow-500 font-black text-sm">⏳ На перевірці у батьків</div>
+                        )}
+                        {task.status === 'active' && (
+                          <button onClick={() => handleCompleteClick(task)}
+                            className="mt-1 w-full gradient-purple text-white font-black py-2.5 rounded-xl text-sm active:scale-95 transition-all">
+                            🐾 Я виконав!
+                          </button>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        {task.status === 'done'
-                          ? <span className="text-green-500 font-semibold">✅ Виконано сьогодні</span>
-                          : <span className="text-gray-400 font-semibold">🕰️ Заплановано на сьогодні</span>}
-                      </div>
-                      {task.status === 'active' && (
-                        <button onClick={() => handleCompleteClick(task)}
-                          className="mt-3 w-full gradient-purple text-white font-black py-2.5 rounded-xl text-sm active:scale-95 transition-all">
-                          🐾 Я виконав!
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </>
             )}
@@ -676,17 +760,20 @@ export default function ChildDashboard() {
                 )}
                 <div className="space-y-3">
                   {purchases.filter(p => p.status !== 'refunded').map(p => (
-                    <div key={p.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
-                      <div className="text-3xl">{p.rewards?.emoji || '🎁'}</div>
-                      <div className="flex-1">
-                        <div className="font-black text-gray-800">{p.rewards?.title}</div>
-                        <div className="text-sm text-gray-500">{new Date(p.purchased_at).toLocaleDateString('uk-UA')}</div>
+                    <div key={p.id} className="bg-white rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="text-3xl">{p.rewards?.emoji || '🎁'}</div>
+                        <div className="flex-1">
+                          <div className="font-black text-gray-800">{p.rewards?.title}</div>
+                          <div className="text-sm text-orange-500 font-semibold">
+                            −⭐{p.points_spent} · {new Date(p.purchased_at).toLocaleDateString('uk-UA')}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-orange-500 font-black text-sm">⭐ {p.points_spent}</div>
-                        <button onClick={() => setReceiptPurchase(p)}
-                          className="text-xs text-violet-600 font-bold underline">Чек</button>
-                      </div>
+                      <button onClick={() => setReceiptPurchase(p)}
+                        className="w-full bg-violet-50 text-violet-700 font-black text-sm py-2 rounded-xl active:scale-95">
+                        🧾 Чек
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -737,42 +824,56 @@ export default function ChildDashboard() {
         {/* ── MONEY TAB ───────────────────────────────────────────────────── */}
         {tab === 'money' && familyConfig?.pocket_money_enabled && (
           <>
-            <div className="bg-gradient-to-r from-green-400 to-emerald-500 rounded-2xl p-5 text-white">
-              <div className="text-sm font-semibold opacity-80 mb-1">Твої зірки</div>
-              <div className="text-4xl font-black">⭐ {points}</div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <h3 className="font-black text-gray-800 mb-2">💱 Курс обміну</h3>
-              <div className="text-2xl font-black text-center text-green-600 py-2">
-                {familyConfig.exchange_rate || 4} ⭐ = 1 {currencySymbol}
+            {/* Dual-section green card */}
+            <div className="bg-gradient-to-r from-green-400 to-emerald-500 rounded-3xl p-5 text-white">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <div className="text-xs font-black tracking-wider text-green-100 mb-1">твої зіркові бали</div>
+                  <div className="text-4xl font-black">⭐{points}</div>
+                </div>
+                <div className="w-px bg-white/30" />
+                <div className="flex-1">
+                  <div className="text-xs font-black tracking-wider text-green-100 mb-1">Курс обміну</div>
+                  <div className="font-black text-lg">100⭐ = {(100 / (familyConfig.exchange_rate || 4)).toFixed(0)}{currencySymbol}</div>
+                </div>
               </div>
             </div>
 
+            {/* Preset tiles */}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <h3 className="font-black text-gray-800 mb-3">Оберіть суму для обміну</h3>
-              <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="grid grid-cols-2 gap-2 mb-4">
                 {[20, 50, 100, 200].map(amt => {
-                  const money = (amt / (familyConfig.exchange_rate || 4)).toFixed(2)
+                  const money = (amt / (familyConfig.exchange_rate || 4)).toFixed(0)
                   const canAfford = points >= amt
                   return (
                     <button key={amt} onClick={() => { setExchangeAmount(amt); setExchangeCustom('') }}
                       disabled={!canAfford}
-                      className={`py-3 rounded-xl font-black text-sm transition-all ${exchangeAmount === amt ? 'gradient-purple text-white' : canAfford ? 'bg-gray-100 text-gray-700 hover:bg-violet-50' : 'bg-gray-50 text-gray-300'}`}>
-                      ⭐ {amt} → {money} {currencySymbol}
+                      className={`py-4 rounded-2xl font-black text-sm transition-all flex flex-col items-center gap-1 ${exchangeAmount === amt ? 'gradient-purple text-white' : canAfford ? 'bg-gray-100 text-gray-700 hover:bg-green-50' : 'bg-gray-50 text-gray-300'}`}>
+                      <span className="text-base">⭐{amt}</span>
+                      <span className="text-xs opacity-80">= {money}{currencySymbol}</span>
                     </button>
                   )
                 })}
               </div>
-              <div className="flex gap-2 mb-3">
+
+              {/* Custom input */}
+              <div className="mb-3">
+                <div className="text-sm font-black text-gray-700 mb-2">Своя сума</div>
                 <input
                   type="number"
                   value={exchangeCustom}
                   onChange={e => { setExchangeCustom(e.target.value); setExchangeAmount('custom') }}
-                  placeholder="Своя кількість ⭐"
-                  className="flex-1 border border-gray-200 rounded-xl px-4 py-3 font-semibold text-sm focus:outline-none focus:border-violet-400"
+                  placeholder="Введи кількість ⭐"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 font-semibold text-sm focus:outline-none focus:border-green-400"
                 />
+                {exchangeAmount === 'custom' && exchangeCustom && (
+                  <div className="text-center text-sm text-green-600 font-black mt-1">
+                    = {(parseInt(exchangeCustom) / (familyConfig.exchange_rate || 4)).toFixed(2)}{currencySymbol}
+                  </div>
+                )}
               </div>
+
               {familyConfig.mono_send_jar_id && (
                 <div className="bg-green-50 rounded-xl p-3 mb-3 text-sm text-green-700 font-semibold">
                   💳 Mono Jar: {familyConfig.mono_send_jar_id}
@@ -781,8 +882,8 @@ export default function ChildDashboard() {
               <button
                 onClick={handleExchange}
                 disabled={exchangeLoading || (!exchangeAmount && !exchangeCustom)}
-                className="w-full gradient-purple text-white font-black py-3 rounded-xl disabled:opacity-50">
-                {exchangeLoading ? '⏳ Обробка...' : '💰 Обміняти'}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-black py-3 rounded-xl disabled:opacity-50 active:scale-95">
+                {exchangeLoading ? '⏳ Обробка...' : '💰 Обміняти зірки'}
               </button>
             </div>
           </>
@@ -793,67 +894,105 @@ export default function ChildDashboard() {
           <>
             {battle ? (
               <div className="space-y-4">
-                <div className={`rounded-2xl p-5 text-white ${battle.status === 'active' ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}>
-                  <div className="text-sm font-semibold opacity-80 mb-1">⚔️ Батл</div>
-                  <div className="font-black text-lg">{battle.status === 'waiting' ? '⏳ Чекаємо суперника...' : battle.status === 'active' ? '🔥 Активний батл!' : '🏁 Батл завершено'}</div>
-                  {battle.invite_code && battle.status === 'waiting' && (
-                    <div className="mt-3 bg-white/20 rounded-xl p-3 text-center">
-                      <div className="text-xs opacity-70 mb-1">Код для суперника</div>
-                      <div className="font-black text-2xl tracking-widest">{battle.invite_code}</div>
+                {battle.status === 'waiting' && (
+                  <div className="bg-white rounded-3xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-yellow-400 to-orange-400 p-5 text-white text-center">
+                      <div className="text-4xl mb-2">⚔️</div>
+                      <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <span className="font-black text-sm">🎯 Очікує суперника</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1 bg-green-400 text-white rounded-full px-3 py-1 font-black text-sm ml-2">
+                        +50⭐
+                      </div>
                     </div>
-                  )}
-                  {battle.status === 'active' && (
-                    <div className="mt-3 flex gap-3">
+                    <div className="p-5 text-center">
+                      <div className="text-sm text-gray-500 font-semibold mb-3">Поділись кодом з другом:</div>
+                      <div className="bg-violet-50 rounded-2xl py-5 px-6 mb-4">
+                        <div className="font-black text-4xl tracking-[0.3em] text-violet-700">{battle.invite_code}</div>
+                      </div>
+                      <button onClick={() => navigator.clipboard?.writeText(battle.invite_code).then(() => alert('Скопійовано!'))}
+                        className="w-full bg-violet-100 text-violet-700 font-black py-3 rounded-xl active:scale-95">
+                        📋 Скопіювати код
+                      </button>
+                      <div className="text-xs text-gray-400 mt-3">До {new Date(battle.ends_at).toLocaleDateString('uk-UA')} · +{battle.bonus_points} ⭐ переможцю</div>
+                    </div>
+                  </div>
+                )}
+                {battle.status === 'active' && (
+                  <div className="bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl p-5 text-white">
+                    <div className="text-sm font-semibold opacity-80 mb-1">⚔️ Батл активний</div>
+                    <div className="font-black text-lg mb-3">🔥 Хто більше виконає завдань?</div>
+                    <div className="flex gap-3">
                       <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
                         <div className="text-xs opacity-70">Ти</div>
-                        <div className="font-black text-2xl">{battle.challenger_id === user.id ? battle.challenger_score : battle.opponent_score}</div>
+                        <div className="font-black text-3xl">{battle.challenger_id === user.id ? (battle.challenger_score || 0) : (battle.opponent_score || 0)}</div>
                       </div>
+                      <div className="text-2xl font-black self-center">VS</div>
                       <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
                         <div className="text-xs opacity-70">Суперник</div>
-                        <div className="font-black text-2xl">{battle.challenger_id === user.id ? battle.opponent_score : battle.challenger_score}</div>
+                        <div className="font-black text-3xl">{battle.challenger_id === user.id ? (battle.opponent_score || 0) : (battle.challenger_score || 0)}</div>
                       </div>
                     </div>
-                  )}
-                  <div className="mt-2 text-xs opacity-70">
-                    До {new Date(battle.ends_at).toLocaleDateString('uk-UA')} · +{battle.bonus_points} ⭐ переможцю
+                    <div className="mt-3 text-xs opacity-70 text-center">
+                      До {new Date(battle.ends_at).toLocaleDateString('uk-UA')} · +{battle.bonus_points} ⭐ переможцю
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
-                  <div className="text-5xl mb-3">⚔️</div>
-                  <h2 className="font-black text-gray-800 text-lg mb-2">Батл із другом</h2>
-                  <p className="text-gray-500 text-sm mb-4">7-денне змагання — хто більше виконає завдань!</p>
-                  <button onClick={handleCreateBattle} disabled={battleLoading}
-                    className="w-full gradient-purple text-white font-black py-3 rounded-xl mb-3 disabled:opacity-50">
-                    {battleLoading ? '⏳...' : '🚀 Створити батл'}
+              <>
+                {/* Sub-tabs */}
+                <div className="flex bg-gray-100 rounded-2xl p-1">
+                  <button onClick={() => setBattleSubTab('new')}
+                    className={`flex-1 py-2 rounded-xl font-black text-sm transition-all ${battleSubTab === 'new' ? 'bg-white text-violet-700 shadow' : 'text-gray-400'}`}>
+                    🗡 Новий бій
                   </button>
-                  {battleCode && (
-                    <div className="bg-violet-50 rounded-xl p-3 mb-3">
-                      <div className="text-xs text-gray-500 mb-1">Поділись кодом з другом:</div>
-                      <div className="font-black text-2xl text-violet-700 tracking-widest">{battleCode}</div>
-                    </div>
-                  )}
+                  <button onClick={() => setBattleSubTab('join')}
+                    className={`flex-1 py-2 rounded-xl font-black text-sm transition-all ${battleSubTab === 'join' ? 'bg-white text-violet-700 shadow' : 'text-gray-400'}`}>
+                    🔗 Приєднатись
+                  </button>
                 </div>
 
-                <div className="bg-white rounded-2xl p-5 shadow-sm">
-                  <h3 className="font-black text-gray-800 mb-3">Приєднатись до батлу</h3>
-                  <div className="flex gap-2">
+                {battleSubTab === 'new' && (
+                  <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
+                    <div className="text-5xl mb-3">⚔️</div>
+                    <h2 className="font-black text-gray-800 text-lg mb-2">Батл із другом</h2>
+                    <p className="text-gray-500 text-sm mb-5">7-денне змагання — хто більше виконає завдань! Переможець отримує +50⭐</p>
+                    <button onClick={handleCreateBattle} disabled={battleLoading}
+                      className="w-full gradient-purple text-white font-black py-3 rounded-xl mb-3 disabled:opacity-50 active:scale-95">
+                      {battleLoading ? '⏳...' : '🚀 Створити батл'}
+                    </button>
+                    {battleCode && (
+                      <div className="bg-violet-50 rounded-2xl py-4 px-5">
+                        <div className="text-xs text-gray-500 mb-2">Поділись кодом з другом:</div>
+                        <div className="font-black text-3xl text-violet-700 tracking-[0.3em]">{battleCode}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {battleSubTab === 'join' && (
+                  <div className="bg-white rounded-2xl p-6 shadow-sm">
+                    <div className="text-center mb-5">
+                      <div className="text-5xl mb-2">🔗</div>
+                      <h3 className="font-black text-gray-800 text-lg">Приєднатись до батлу</h3>
+                      <p className="text-gray-500 text-sm mt-1">Введи код від друга</p>
+                    </div>
                     <input
                       value={battleJoinCode}
                       onChange={e => setBattleJoinCode(e.target.value.toUpperCase())}
-                      placeholder="Введи код"
-                      className="flex-1 border border-gray-200 rounded-xl px-4 py-3 font-black text-center tracking-widest focus:outline-none focus:border-violet-400 uppercase"
+                      placeholder="XXXXXX"
+                      className="w-full border-2 border-gray-200 rounded-xl px-4 py-4 font-black text-center tracking-[0.3em] text-xl focus:outline-none focus:border-violet-400 uppercase mb-3"
                       maxLength={6}
                     />
                     <button onClick={handleJoinBattle} disabled={battleLoading || !battleJoinCode.trim()}
-                      className="gradient-purple text-white font-black px-5 rounded-xl disabled:opacity-50">
-                      Вступити
+                      className="w-full gradient-purple text-white font-black py-3 rounded-xl disabled:opacity-50 active:scale-95">
+                      {battleLoading ? '⏳...' : '⚔️ Вступити в батл!'}
                     </button>
                   </div>
-                </div>
-              </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -861,63 +1000,53 @@ export default function ChildDashboard() {
         {/* ── LEVELS TAB ──────────────────────────────────────────────────── */}
         {tab === 'levels' && (
           <>
-            {/* Current level */}
-            <div className="gradient-purple text-white rounded-2xl p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="text-4xl">{level.emoji}</div>
-                <div>
-                  <div className="font-black text-xl">{level.name}</div>
-                  <div className="text-violet-200 text-sm">Всього зароблено: ⭐ {totalPointsEarned}</div>
-                </div>
-              </div>
-              <div className="bg-white/20 rounded-full h-3 overflow-hidden">
-                <div className="h-full rounded-full bg-white transition-all"
-                  style={{ width: `${levelProgress}%` }} />
-              </div>
-              <div className="flex justify-between text-xs text-violet-200 mt-1">
-                <span>{level.min} ⭐</span>
-                <span className="font-black">{levelProgress}%</span>
-                <span>{level.max === Infinity ? '∞' : level.max} ⭐</span>
-              </div>
-            </div>
-
-            {/* All levels */}
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100">
-                <h3 className="font-black text-gray-800">Всі рівні</h3>
-              </div>
-              {LEVELS.map(lvl => {
-                const isCurrentLevel = lvl.name === level.name
-                const isPassed = totalPointsEarned > lvl.max && lvl.max !== Infinity
-                return (
-                  <div key={lvl.name}
-                    className={`flex items-center gap-3 p-4 border-b border-gray-50 ${isCurrentLevel ? 'bg-violet-50' : ''}`}>
-                    <div className="text-2xl">{lvl.emoji}</div>
-                    <div className="flex-1">
-                      <div className={`font-black ${isCurrentLevel ? 'text-violet-700' : 'text-gray-800'}`}>{lvl.name}</div>
-                      <div className="text-xs text-gray-400">{lvl.min} – {lvl.max === Infinity ? '∞' : lvl.max} ⭐</div>
+            {/* Current level card */}
+            {(() => {
+              const nextLevel = LEVELS.find(l => l.min > totalPointsEarned)
+              const toNext = nextLevel ? nextLevel.min - totalPointsEarned : 0
+              return (
+                <div className="gradient-purple text-white rounded-3xl p-6">
+                  <div className="text-xs font-black tracking-widest text-violet-200 mb-3">ПОТОЧНИЙ РІВЕНЬ</div>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="text-6xl">{level.emoji}</div>
+                    <div>
+                      <div className="font-black text-2xl">{level.name}</div>
+                      <div className="text-violet-200 font-semibold">⭐{totalPointsEarned} зірок</div>
                     </div>
-                    {isCurrentLevel && <span className="bg-violet-600 text-white text-xs font-black px-2 py-1 rounded-full">Поточний</span>}
-                    {isPassed && <span className="text-green-500 text-xl">✅</span>}
                   </div>
-                )
-              })}
-            </div>
+                  <div className="bg-white/20 rounded-full h-3 overflow-hidden mb-2">
+                    <div className="h-full rounded-full bg-white transition-all"
+                      style={{ width: `${levelProgress}%` }} />
+                  </div>
+                  {nextLevel ? (
+                    <>
+                      <div className="flex justify-between text-xs text-violet-200 font-semibold mb-1">
+                        <span>До рівня {nextLevel.emoji} {nextLevel.name}</span>
+                        <span>{levelProgress}%</span>
+                      </div>
+                      <div className="text-xs text-violet-200">Залишилось: {toNext}⭐</div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-violet-200 font-black">👑 Максимальний рівень!</div>
+                  )}
+                </div>
+              )
+            })()}
 
-            {/* Achievements */}
+            {/* Achievements 2×5 grid */}
             <div className="bg-white rounded-2xl shadow-sm p-4">
               <h3 className="font-black text-gray-800 mb-3">🏅 Досягнення</h3>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {ACHIEVEMENTS.map(ach => {
                   const unlocked = achievements.some(a => a.achievement_id === ach.id)
                   return (
                     <div key={ach.id}
-                      className={`rounded-xl p-3 flex items-center gap-2 ${unlocked ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50 opacity-50'}`}>
-                      <div className={`text-2xl ${unlocked ? '' : 'grayscale'}`}>{ach.emoji}</div>
-                      <div>
-                        <div className="font-black text-xs text-gray-800">{ach.name}</div>
-                        <div className="text-xs text-gray-400">{ach.desc}</div>
-                        {unlocked && <div className="text-xs text-yellow-600 font-bold">✨ Відкрито!</div>}
+                      className={`rounded-2xl p-3 flex items-center gap-3 transition-all ${unlocked ? 'bg-yellow-50 border-2 border-yellow-300' : 'bg-gray-50 opacity-50'}`}>
+                      <div className={`text-3xl ${unlocked ? '' : 'grayscale'}`}>{ach.emoji}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-black text-xs text-gray-800 leading-tight">{ach.name}</div>
+                        <div className="text-xs text-gray-400 leading-tight mt-0.5">{ach.desc}</div>
+                        {unlocked && <div className="text-xs text-yellow-600 font-black mt-1">✨ Відкрито!</div>}
                       </div>
                     </div>
                   )
