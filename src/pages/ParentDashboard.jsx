@@ -248,14 +248,18 @@ function AddChildModal({ familyId, onClose, onSaved }) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const m = login.trim().toLowerCase()
-    const { data: existing } = await supabase.from('users').select('id').eq('login', m).maybeSingle()
-    if (existing) { setError(t.loginTaken); setLoading(false); return }
-    const { error: err } = await supabase.from('users').insert({
-      login: m, password_hash: password, display_name: name.trim(),
-      role: 'child', family_id: familyId, avatar_emoji: emoji, points: 0,
+    const { error: err } = await supabase.rpc('create_child_account', {
+      p_family_id: familyId,
+      p_display_name: name.trim(),
+      p_login: login.trim().toLowerCase(),
+      p_password: password,
+      p_avatar_emoji: emoji,
     })
-    if (err) { setError(t.accountCreateError || 'Помилка'); setLoading(false); return }
+    if (err) {
+      setError(err.message?.includes('login_taken') ? (t.loginTaken || 'Логін вже зайнятий') : (t.accountCreateError || 'Помилка'))
+      setLoading(false)
+      return
+    }
     setLoading(false)
     onSaved()
   }
@@ -689,14 +693,18 @@ function OnboardingFlow({ familyId, user, onComplete }) {
   const handleAddChild = async () => {
     setChildError('')
     setChildLoading(true)
-    const m = childLogin.trim().toLowerCase()
-    const { data: existing } = await supabase.from('users').select('id').eq('login', m).maybeSingle()
-    if (existing) { setChildError('Логін вже зайнятий'); setChildLoading(false); return }
-    const { error: err } = await supabase.from('users').insert({
-      login: m, password_hash: childPassword, display_name: childName.trim(),
-      role: 'child', family_id: familyId, avatar_emoji: childEmoji, points: 0,
+    const { data, error: err } = await supabase.rpc('create_child_account', {
+      p_family_id: familyId,
+      p_display_name: childName.trim(),
+      p_login: childLogin.trim().toLowerCase(),
+      p_password: childPassword,
+      p_avatar_emoji: childEmoji,
     })
-    if (err) { setChildError('Помилка створення'); setChildLoading(false); return }
+    if (err) {
+      setChildError(err.message?.includes('login_taken') ? 'Логін вже зайнятий' : 'Помилка створення')
+      setChildLoading(false)
+      return
+    }
     setChildLoading(false)
     setStep(1)
   }
@@ -865,9 +873,73 @@ function OnboardingFlow({ familyId, user, onComplete }) {
   )
 }
 
+// ── MigrationBanner: shown to legacy parents without Supabase Auth ─────────────
+function MigrationBanner({ user, onDone }) {
+  const { migrateParent } = useAuth()
+  const [show, setShow] = useState(false)
+  const [email, setEmail] = useState('')
+  const [pass, setPass] = useState('')
+  const [pass2, setPass2] = useState('')
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  if (!show) return (
+    <div className="mx-4 mt-3 bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex gap-3 items-start">
+      <div className="text-2xl">🔐</div>
+      <div className="flex-1">
+        <div className="font-black text-amber-800 text-sm">Захистіть свій акаунт</div>
+        <div className="text-xs text-amber-700 mt-0.5">Додайте email і пароль для безпечного входу. Займе 30 секунд.</div>
+      </div>
+      <button onClick={() => setShow(true)} className="bg-amber-500 text-white font-black text-xs px-3 py-2 rounded-xl whitespace-nowrap">
+        Захистити →
+      </button>
+    </div>
+  )
+
+  const handleMigrate = async (e) => {
+    e.preventDefault()
+    setErr('')
+    if (pass !== pass2) { setErr('Паролі не співпадають'); return }
+    if (pass.length < 6) { setErr('Мінімум 6 символів'); return }
+    setLoading(true)
+    try {
+      await migrateParent(user.id, email, pass)
+      onDone()
+    } catch (error) {
+      setErr(error.message === 'email_taken' ? 'Цей email вже використовується' : 'Помилка. Спробуйте ще раз.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="mx-4 mt-3 bg-amber-50 border-2 border-amber-300 rounded-2xl p-5">
+      <div className="font-black text-amber-800 mb-3">🔐 Захист акаунту</div>
+      <form onSubmit={handleMigrate} className="space-y-3">
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+          placeholder="Ваш email" required
+          className="w-full px-4 py-2.5 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:outline-none font-semibold text-sm" />
+        <input type="password" value={pass} onChange={e => setPass(e.target.value)}
+          placeholder="Новий пароль (мін. 6 символів)" required
+          className="w-full px-4 py-2.5 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:outline-none font-semibold text-sm" />
+        <input type="password" value={pass2} onChange={e => setPass2(e.target.value)}
+          placeholder="Повторити пароль" required
+          className="w-full px-4 py-2.5 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:outline-none font-semibold text-sm" />
+        {err && <p className="text-red-500 text-sm font-semibold">{err}</p>}
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setShow(false)} className="flex-1 bg-gray-100 text-gray-600 font-black py-2.5 rounded-xl text-sm">Пізніше</button>
+          <button type="submit" disabled={loading} className="flex-1 bg-amber-500 text-white font-black py-2.5 rounded-xl text-sm disabled:opacity-50">
+            {loading ? '⏳...' : '🔐 Захистити'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 // ── Main ParentDashboard ───────────────────────────────────────────────────────
 export default function ParentDashboard() {
-  const { user, logout } = useAuth()
+  const { user, logout, refreshUser } = useAuth()
   const { t } = useLang()
   const [tab, setTab] = useState('tasks')
   const [taskSubTab, setTaskSubTab] = useState('active')
@@ -1125,6 +1197,11 @@ export default function ParentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Migration banner for legacy parents */}
+      {user.needs_migration && (
+        <MigrationBanner user={user} onDone={() => refreshUser(user.id)} />
+      )}
 
       {/* Tabs */}
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur shadow-sm overflow-x-auto">

@@ -17,10 +17,10 @@ export default function LoginPage() {
   const [loginVal, setLoginVal] = useState('')
   const [password, setPassword] = useState('')
 
-  // Register form
+  // Register form (parent only — has email)
   const [regName, setRegName] = useState('')
   const [regFamily, setRegFamily] = useState('')
-  const [regLogin, setRegLogin] = useState('')
+  const [regEmail, setRegEmail] = useState('')
   const [regPass, setRegPass] = useState('')
   const [regPass2, setRegPass2] = useState('')
 
@@ -35,11 +35,15 @@ export default function LoginPage() {
   )[0]
 
   const getErrMsg = (code) => ({
-    invalid_credentials: t.invalidCredentials,
-    login_taken: t.loginTaken,
-    family_error: t.familyCreateError,
-    account_error: t.accountCreateError,
+    invalid_credentials: t.invalidCredentials || 'Невірний логін або пароль',
+    login_taken: t.loginTaken || 'Логін вже зайнятий',
+    email_taken: 'Цей email вже зареєстрований',
+    family_error: t.familyCreateError || 'Помилка створення сім\'ї',
+    account_error: t.accountCreateError || 'Помилка створення акаунту',
   })[code] || code
+
+  // Detect if login input is email (parent) or login (child)
+  const isEmailInput = loginVal.includes('@')
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -58,11 +62,12 @@ export default function LoginPage() {
   const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
-    if (regPass !== regPass2) { setError(t.passwordsNoMatch); return }
-    if (regPass.length < 4) { setError(t.passwordTooShort); return }
+    if (regPass !== regPass2) { setError(t.passwordsNoMatch || 'Паролі не співпадають'); return }
+    if (regPass.length < 6) { setError('Пароль мінімум 6 символів'); return }
+    if (!regEmail.includes('@')) { setError('Введи правильний email'); return }
     setLoading(true)
     try {
-      await register({ login: regLogin, password: regPass, displayName: regName, familyName: regFamily || regName })
+      await register({ email: regEmail, password: regPass, displayName: regName, familyName: regFamily || regName })
       navigate('/parent', { replace: true })
     } catch (err) {
       setError(getErrMsg(err.message))
@@ -98,54 +103,82 @@ export default function LoginPage() {
           {['login', 'register'].map(v => (
             <button key={v} onClick={() => { setTab(v); setError('') }}
               className={`flex-1 py-2 rounded-xl font-black text-sm transition-all ${tab === v ? 'bg-white text-violet-700 shadow' : 'text-gray-400'}`}>
-              {v === 'login' ? t.login : t.register}
+              {v === 'login' ? t.login || 'Увійти' : t.register || 'Реєстрація'}
             </button>
           ))}
         </div>
 
         <div className="px-6 pb-7">
+          {/* ── LOGIN ── */}
           {tab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-3">
               <div>
-                <label className="block text-sm font-black text-gray-600 mb-1.5">{t.loginLabel}</label>
-                <input type="text" value={loginVal} onChange={e => setLoginVal(e.target.value)} placeholder={t.loginPlaceholder} className={inputCls} required />
+                <label className="block text-sm font-black text-gray-600 mb-1.5">
+                  {isEmailInput ? '📧 Email батьків' : '👤 Логін або email'}
+                </label>
+                <input
+                  type="text"
+                  value={loginVal}
+                  onChange={e => setLoginVal(e.target.value)}
+                  placeholder="email або логін дитини"
+                  className={inputCls}
+                  autoCapitalize="none"
+                  required
+                />
               </div>
               <div>
-                <label className="block text-sm font-black text-gray-600 mb-1.5">{t.passwordLabel}</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} className={inputCls} required />
+                <label className="block text-sm font-black text-gray-600 mb-1.5">
+                  {t.passwordLabel || 'Пароль'}
+                </label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••" className={inputCls} required />
+              </div>
+              {/* Hint: parents use email */}
+              <div className="bg-violet-50 rounded-xl px-3 py-2 text-xs text-violet-600 font-semibold">
+                👨‍👩‍👧 Батьки входять через <strong>email</strong>. Діти — через <strong>логін</strong> без email.
               </div>
               {error && <div className="bg-red-50 border-2 border-red-200 text-red-600 rounded-2xl px-4 py-3 text-sm font-bold text-center">😬 {error}</div>}
               <button type="submit" disabled={loading} className="w-full gradient-purple text-white font-black text-lg py-3.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-95 transition-all disabled:opacity-60 mt-1">
-                {loading ? t.loginLoading : t.loginButton}
+                {loading ? '⏳ Входимо...' : t.loginButton || 'Увійти'}
               </button>
-              <p className="text-center text-xs text-gray-400 font-semibold pt-1">{t.loginHint}</p>
             </form>
           )}
 
+          {/* ── REGISTER (parents only) ── */}
           {tab === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3">
-              <div className="bg-violet-50 rounded-2xl px-4 py-3 text-xs text-violet-600 font-bold">{t.registerHint}</div>
-              {[
-                { label: t.yourName, val: regName, set: setRegName, ph: t.yourNamePlaceholder },
-                { label: t.familyName, val: regFamily, set: setRegFamily, ph: t.familyNamePlaceholder, req: false },
-                { label: t.loginFieldLabel, val: regLogin, set: setRegLogin, ph: 'login' },
-              ].map(f => (
-                <div key={f.label}>
-                  <label className="block text-sm font-black text-gray-600 mb-1.5">{f.label}</label>
-                  <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} className={inputCls} required={f.req !== false} />
-                </div>
-              ))}
-              <div>
-                <label className="block text-sm font-black text-gray-600 mb-1.5">{t.passwordLabel}</label>
-                <input type="password" value={regPass} onChange={e => setRegPass(e.target.value)} placeholder={t.passwordMin} className={inputCls} required />
+              <div className="bg-violet-50 rounded-2xl px-4 py-3 text-xs text-violet-600 font-bold">
+                👩‍💼 Реєстрація тільки для батьків. Акаунти дітей створюються всередині додатку.
               </div>
               <div>
-                <label className="block text-sm font-black text-gray-600 mb-1.5">{t.repeatPassword}</label>
-                <input type="password" value={regPass2} onChange={e => setRegPass2(e.target.value)} placeholder={t.repeatPasswordPlaceholder} className={inputCls} required />
+                <label className="block text-sm font-black text-gray-600 mb-1.5">Ваше ім'я</label>
+                <input value={regName} onChange={e => setRegName(e.target.value)} placeholder="Наприклад: Марія" className={inputCls} required />
+              </div>
+              <div>
+                <label className="block text-sm font-black text-gray-600 mb-1.5">Назва сім'ї <span className="text-gray-300 font-normal">(необов'язково)</span></label>
+                <input value={regFamily} onChange={e => setRegFamily(e.target.value)} placeholder="Сім'я Коваленко" className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-sm font-black text-gray-600 mb-1.5">📧 Email</label>
+                <input
+                  type="email"
+                  value={regEmail}
+                  onChange={e => setRegEmail(e.target.value)}
+                  placeholder="mama@gmail.com"
+                  className={inputCls}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-black text-gray-600 mb-1.5">Пароль <span className="text-gray-400 font-normal text-xs">(мін. 6 символів)</span></label>
+                <input type="password" value={regPass} onChange={e => setRegPass(e.target.value)} placeholder="••••••" className={inputCls} required />
+              </div>
+              <div>
+                <label className="block text-sm font-black text-gray-600 mb-1.5">Повторити пароль</label>
+                <input type="password" value={regPass2} onChange={e => setRegPass2(e.target.value)} placeholder="••••••" className={inputCls} required />
               </div>
               {error && <div className="bg-red-50 border-2 border-red-200 text-red-600 rounded-2xl px-4 py-3 text-sm font-bold text-center">😬 {error}</div>}
               <button type="submit" disabled={loading} className="w-full gradient-purple text-white font-black text-lg py-3.5 rounded-2xl shadow-lg hover:shadow-xl active:scale-95 transition-all disabled:opacity-60">
-                {loading ? t.registerLoading : t.registerButton}
+                {loading ? '⏳ Створюємо...' : t.registerButton || 'Створити акаунт'}
               </button>
             </form>
           )}
