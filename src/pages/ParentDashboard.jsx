@@ -4,6 +4,87 @@ import { useLang, LanguageSwitcher } from '../i18n/index'
 import { supabase } from '../lib/supabase'
 import TaskCard from '../components/TaskCard'
 
+// ── Freemium plan limits ───────────────────────────────────────────────────────
+export const PLANS = {
+  free: {
+    children: 1,
+    tasks_regular: 2,      // one-time (non-recurring) tasks
+    tasks_recurring: 1,    // recurring tasks
+    rewards: 2,
+  },
+  premium: {
+    children: Infinity,
+    tasks_regular: Infinity,
+    tasks_recurring: Infinity,
+    rewards: Infinity,
+  },
+}
+
+// ── FreemiumGate modal ─────────────────────────────────────────────────────────
+function FreemiumGate({ type, onClose }) {
+  const MESSAGES = {
+    child:     { emoji: '👧', title: 'Ліміт дітей', body: 'Безкоштовний план: 1 дитина. Щоб додати більше — оформи Family Plan.' },
+    task:      { emoji: '📋', title: 'Ліміт завдань', body: 'Безкоштовний план: 2 одноразових завдання. Оформи Family Plan для необмеженої кількості.' },
+    recurring: { emoji: '🔄', title: 'Ліміт регулярних завдань', body: 'Безкоштовний план: 1 регулярне завдання. Оформи Family Plan для необмеженої кількості.' },
+    reward:    { emoji: '🎁', title: 'Ліміт призів', body: 'Безкоштовний план: 2 призи. Оформи Family Plan для необмеженої кількості.' },
+  }
+  const m = MESSAGES[type] || MESSAGES.task
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-violet-600 to-pink-500 px-6 pt-8 pb-6 text-center text-white">
+          <div className="text-5xl mb-3">{m.emoji}</div>
+          <div className="font-black text-xl">{m.title}</div>
+        </div>
+
+        <div className="p-6">
+          <p className="text-gray-600 font-semibold text-center mb-5">{m.body}</p>
+
+          {/* Plan comparison */}
+          <div className="bg-gray-50 rounded-2xl p-4 mb-5 space-y-2 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">👧 Діти</span>
+              <div className="flex gap-3">
+                <span className="text-gray-400">1</span>
+                <span className="font-black text-violet-700">∞</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">📋 Завдання</span>
+              <div className="flex gap-3">
+                <span className="text-gray-400">2 + 1🔄</span>
+                <span className="font-black text-violet-700">∞</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">🎁 Призи</span>
+              <div className="flex gap-3">
+                <span className="text-gray-400">2</span>
+                <span className="font-black text-violet-700">∞</span>
+              </div>
+            </div>
+            <div className="border-t border-gray-200 pt-2 flex justify-between items-center font-black">
+              <span className="text-gray-700">Family Plan</span>
+              <span className="text-violet-700">$4.99 / міс</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <button className="w-full bg-gradient-to-r from-violet-600 to-pink-500 text-white font-black py-3.5 rounded-2xl shadow active:scale-95">
+              🚀 Оформити Family Plan
+            </button>
+            <button onClick={onClose} className="w-full text-gray-400 font-bold text-sm py-2">
+              Залишитись на безкоштовному
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Add Task Modal ─────────────────────────────────────────────────────────────
 function AddTaskModal({ children, familyId, onClose, onSaved, editTask }) {
   const { t } = useLang()
@@ -965,6 +1046,10 @@ export default function ParentDashboard() {
   const [editChild, setEditChild] = useState(null)
   const [showAddChallenge, setShowAddChallenge] = useState(false)
 
+  // Freemium
+  const [gateType, setGateType] = useState(null) // null | 'child' | 'task' | 'recurring' | 'reward'
+  const isPremium = false // TODO: replace with RevenueCat check
+
   // Profile
   const PARENT_EMOJIS = ['👨', '👩', '🧑', '👴', '👵', '🧔', '👨‍💼', '👩‍💼']
   const [profileEmoji, setProfileEmoji] = useState(user.avatar_emoji || '👨')
@@ -1110,6 +1195,30 @@ export default function ParentDashboard() {
 
   const currencySymbol = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł' }[currency] || '₴'
 
+  // ── Freemium limit helpers ────────────────────────────────────────────────
+  const plan = isPremium ? PLANS.premium : PLANS.free
+
+  // Count only active/pending tasks (not done/deleted)
+  const regularTaskCount = tasks.filter(t => !t.is_recurring && t.status !== 'done' && t.status !== 'deleted').length
+  const recurringTaskCount = tasks.filter(t => t.is_recurring && t.status !== 'done' && t.status !== 'deleted').length
+
+  const canAddChild    = isPremium || children.length < plan.children
+  const canAddTask     = isPremium || regularTaskCount < plan.tasks_regular
+  const canAddRecurring = isPremium || recurringTaskCount < plan.tasks_recurring
+  const canAddReward   = isPremium || rewards.length < plan.rewards
+
+  // Called instead of setShowAddTask(true) — checks limit first
+  const tryAddTask = (isRecurring = false) => {
+    if (isRecurring) {
+      if (!canAddRecurring) { setGateType('recurring'); return }
+    } else {
+      if (!canAddTask) { setGateType('task'); return }
+    }
+    setShowAddTask(true)
+  }
+  const tryAddReward  = () => { if (!canAddReward)  { setGateType('reward');  return }; setShowAddReward(true) }
+  const tryAddChild   = () => { if (!canAddChild)   { setGateType('child');   return }; setShowAddChild(true) }
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-100 to-pink-100">
       <div className="text-5xl animate-bounce">⭐</div>
@@ -1127,6 +1236,9 @@ export default function ParentDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Freemium gate */}
+      {gateType && <FreemiumGate type={gateType} onClose={() => setGateType(null)} />}
+
       {/* Modals */}
       {(showAddTask || editTask) && (
         <AddTaskModal
@@ -1203,6 +1315,62 @@ export default function ParentDashboard() {
         <MigrationBanner user={user} onDone={() => refreshUser(user.id)} />
       )}
 
+      {/* Freemium usage bar — shown only on free plan */}
+      {!isPremium && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl shadow-sm px-4 py-3 flex items-center gap-3">
+          <div className="flex-1 space-y-1.5">
+            <div className="flex justify-between text-xs font-bold text-gray-500 mb-0.5">
+              <span>Безкоштовний план</span>
+              <button onClick={() => setGateType('task')} className="text-violet-600 font-black">Upgrade ✨</button>
+            </div>
+            {/* children */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">👧 Діти</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-violet-500 transition-all"
+                  style={{ width: `${Math.min((children.length / plan.children) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${children.length >= plan.children ? 'text-red-500' : 'text-gray-500'}`}>
+                {children.length}/{plan.children}
+              </span>
+            </div>
+            {/* tasks */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">📋 Завдання</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-orange-400 transition-all"
+                  style={{ width: `${Math.min((regularTaskCount / plan.tasks_regular) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${regularTaskCount >= plan.tasks_regular ? 'text-red-500' : 'text-gray-500'}`}>
+                {regularTaskCount}/{plan.tasks_regular}
+              </span>
+            </div>
+            {/* recurring */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">🔄 Регулярні</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-blue-400 transition-all"
+                  style={{ width: `${Math.min((recurringTaskCount / plan.tasks_recurring) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${recurringTaskCount >= plan.tasks_recurring ? 'text-red-500' : 'text-gray-500'}`}>
+                {recurringTaskCount}/{plan.tasks_recurring}
+              </span>
+            </div>
+            {/* rewards */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">🎁 Призи</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-pink-400 transition-all"
+                  style={{ width: `${Math.min((rewards.length / plan.rewards) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${rewards.length >= plan.rewards ? 'text-red-500' : 'text-gray-500'}`}>
+                {rewards.length}/{plan.rewards}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur shadow-sm overflow-x-auto">
         <div className="flex min-w-max">
@@ -1227,9 +1395,14 @@ export default function ParentDashboard() {
         {/* ── TASKS TAB ─────────────────────────────────────────────────── */}
         {tab === 'tasks' && (
           <>
-            <button onClick={() => setShowAddTask(true)}
+            {/* Add task button — respects freemium limit per sub-tab */}
+            <button onClick={() => tryAddTask(taskSubTab === 'recurring')}
               className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl shadow active:scale-95 transition-all">
               + {t.addTask || 'Додати завдання'}
+              {!isPremium && taskSubTab !== 'recurring' && regularTaskCount >= plan.tasks_regular &&
+                <span className="ml-2 text-xs font-bold opacity-80">({regularTaskCount}/{plan.tasks_regular})</span>}
+              {!isPremium && taskSubTab === 'recurring' && recurringTaskCount >= plan.tasks_recurring &&
+                <span className="ml-2 text-xs font-bold opacity-80">({recurringTaskCount}/{plan.tasks_recurring})</span>}
             </button>
 
             {/* Sub-tabs — only 2 */}
@@ -1456,9 +1629,11 @@ export default function ParentDashboard() {
         {/* ── REWARDS TAB ─────────────────────────────────────────────────── */}
         {tab === 'rewards' && (
           <>
-            <button onClick={() => setShowAddReward(true)}
+            <button onClick={tryAddReward}
               className="w-full bg-gradient-to-r from-orange-400 to-pink-500 text-white font-black py-3.5 rounded-2xl shadow active:scale-95">
               + {t.addReward || 'Додати приз'}
+              {!isPremium && rewards.length >= plan.rewards &&
+                <span className="ml-2 text-xs font-bold opacity-80">({rewards.length}/{plan.rewards})</span>}
             </button>
             {rewards.length === 0 && (
               <div className="text-center py-16">
@@ -1495,9 +1670,11 @@ export default function ParentDashboard() {
               />
             ) : (
               <>
-                <button onClick={() => setShowAddChild(true)}
+                <button onClick={tryAddChild}
                   className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl shadow active:scale-95">
                   + {t.addChild || 'Додати дитину'}
+                  {!isPremium && children.length >= plan.children &&
+                    <span className="ml-2 text-xs font-bold opacity-80">({children.length}/{plan.children})</span>}
                 </button>
                 <div className="space-y-3">
                   {children.map(child => {
