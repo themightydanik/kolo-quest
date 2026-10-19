@@ -3,6 +3,9 @@ import { useAuth } from '../lib/auth'
 import { useLang, LanguageSwitcher } from '../i18n/index'
 import { supabase } from '../lib/supabase'
 import TaskCard from '../components/TaskCard'
+import { useSubscription } from '../lib/useSubscription'
+import { resetPurchases } from '../lib/purchases'
+import PaywallModal from '../components/PaywallModal'
 
 // ── Freemium plan limits ───────────────────────────────────────────────────────
 export const PLANS = {
@@ -21,7 +24,7 @@ export const PLANS = {
 }
 
 // ── FreemiumGate modal ─────────────────────────────────────────────────────────
-function FreemiumGate({ type, onClose }) {
+function FreemiumGate({ type, onClose, onUpgrade }) {
   const MESSAGES = {
     child:     { emoji: '👧', title: 'Ліміт дітей', body: 'Безкоштовний план: 1 дитина. Щоб додати більше — оформи Family Plan.' },
     task:      { emoji: '📋', title: 'Ліміт завдань', body: 'Безкоштовний план: 2 одноразових завдання. Оформи Family Plan для необмеженої кількості.' },
@@ -72,7 +75,7 @@ function FreemiumGate({ type, onClose }) {
           </div>
 
           <div className="space-y-2">
-            <button className="w-full bg-gradient-to-r from-violet-600 to-pink-500 text-white font-black py-3.5 rounded-2xl shadow active:scale-95">
+            <button onClick={() => { onClose(); onUpgrade?.() }} className="w-full bg-gradient-to-r from-violet-600 to-pink-500 text-white font-black py-3.5 rounded-2xl shadow active:scale-95">
               🚀 Оформити Family Plan
             </button>
             <button onClick={onClose} className="w-full text-gray-400 font-bold text-sm py-2">
@@ -1020,7 +1023,8 @@ function MigrationBanner({ user, onDone }) {
 
 // ── Main ParentDashboard ───────────────────────────────────────────────────────
 export default function ParentDashboard() {
-  const { user, logout, refreshUser } = useAuth()
+  const { user, logout: _logout, refreshUser } = useAuth()
+  const logout = () => { resetPurchases(); _logout() }
   const { t } = useLang()
   const [tab, setTab] = useState('tasks')
   const [taskSubTab, setTaskSubTab] = useState('active')
@@ -1046,9 +1050,10 @@ export default function ParentDashboard() {
   const [editChild, setEditChild] = useState(null)
   const [showAddChallenge, setShowAddChallenge] = useState(false)
 
-  // Freemium
+  // Freemium + RevenueCat
   const [gateType, setGateType] = useState(null) // null | 'child' | 'task' | 'recurring' | 'reward'
-  const isPremium = false // TODO: replace with RevenueCat check
+  const [showPaywall, setShowPaywall] = useState(false)
+  const { isPremium, refresh: refreshSubscription } = useSubscription(user?.id)
 
   // Profile
   const PARENT_EMOJIS = ['👨', '👩', '🧑', '👴', '👵', '🧔', '👨‍💼', '👩‍💼']
@@ -1237,7 +1242,21 @@ export default function ParentDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Freemium gate */}
-      {gateType && <FreemiumGate type={gateType} onClose={() => setGateType(null)} />}
+      {gateType && (
+        <FreemiumGate
+          type={gateType}
+          onClose={() => setGateType(null)}
+          onUpgrade={() => { setGateType(null); setShowPaywall(true) }}
+        />
+      )}
+      {/* Paywall (RevenueCat) */}
+      {showPaywall && (
+        <PaywallModal
+          userId={user?.id}
+          onClose={() => setShowPaywall(false)}
+          onSuccess={() => { setShowPaywall(false); refreshSubscription() }}
+        />
+      )}
 
       {/* Modals */}
       {(showAddTask || editTask) && (
