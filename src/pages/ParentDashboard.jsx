@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { useAuth } from '../lib/auth'
 import { useLang, LanguageSwitcher } from '../i18n/index'
 import { supabase } from '../lib/supabase'
@@ -472,6 +472,399 @@ function EditChildModal({ child, onClose, onSaved }) {
   )
 }
 
+// ── ChildProfile (in-tab view when clicking a child card) ─────────────────────
+function ChildProfile({ child, tasks, feedItems, onBack, onEdit }) {
+  const [subTab, setSubTab] = useState('tasks')
+  const [statRange, setStatRange] = useState(7)
+
+  const childTasks = tasks.filter(t => t.assigned_to === child.id)
+  const childFeed = feedItems.filter(f => f.child_id === child.id)
+
+  // Stats: completed tasks per day for last N days
+  const statsData = useMemo(() => {
+    const days = []
+    const now = new Date()
+    for (let i = statRange - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(now.getDate() - i)
+      const label = d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'numeric' })
+      const count = childFeed.filter(f => {
+        if (f.event_type !== 'task_done') return false
+        const fd = new Date(f.created_at)
+        return fd.toDateString() === d.toDateString()
+      }).length
+      days.push({ label, count })
+    }
+    return days
+  }, [childFeed, statRange])
+
+  const maxCount = Math.max(...statsData.map(d => d.count), 1)
+
+  const LEVEL_CONFIG = [
+    { min: 0,    max: 99,   emoji: '🌱', name: 'Початківець' },
+    { min: 100,  max: 299,  emoji: '⭐', name: 'Зірка' },
+    { min: 300,  max: 699,  emoji: '🚀', name: 'Герой' },
+    { min: 700,  max: 1499, emoji: '🏆', name: 'Чемпіон' },
+    { min: 1500, max: Infinity, emoji: '👑', name: 'Легенда' },
+  ]
+  const totalPts = child.total_points_earned || 0
+  const lvl = LEVEL_CONFIG.find(l => totalPts >= l.min && totalPts <= l.max) || LEVEL_CONFIG[0]
+  const nextLvl = LEVEL_CONFIG[LEVEL_CONFIG.indexOf(lvl) + 1]
+  const lvlProgress = nextLvl ? Math.round(((totalPts - lvl.min) / (nextLvl.min - lvl.min)) * 100) : 100
+
+  return (
+    <div>
+      {/* Back button */}
+      <button onClick={onBack} className="flex items-center gap-2 text-violet-600 font-black text-sm mb-4 active:opacity-70">
+        ← Назад
+      </button>
+
+      {/* Child header card */}
+      <div className="bg-white rounded-3xl shadow-sm overflow-hidden mb-4">
+        <div className="gradient-purple p-5 text-white">
+          <div className="flex items-center gap-4">
+            <div className="text-5xl">{child.avatar_emoji}</div>
+            <div className="flex-1">
+              <div className="font-black text-xl">{child.display_name}</div>
+              <div className="text-violet-200 text-sm">@{child.login}</div>
+              <div className="text-violet-100 text-xs mt-1">{lvl.emoji} {lvl.name}</div>
+            </div>
+            <button onClick={onEdit} className="bg-white/20 rounded-xl px-3 py-2 font-black text-sm">✏️</button>
+          </div>
+          {/* Level progress */}
+          <div className="mt-3">
+            <div className="bg-white/20 rounded-full h-2">
+              <div className="h-full rounded-full bg-white/80 transition-all" style={{ width: `${lvlProgress}%` }} />
+            </div>
+            {nextLvl && <div className="text-xs text-violet-200 mt-1">До {nextLvl.emoji} {nextLvl.name}: {nextLvl.min - totalPts}⭐</div>}
+          </div>
+        </div>
+        {/* 3 stat tiles */}
+        <div className="grid grid-cols-3 divide-x divide-gray-100">
+          <div className="py-4 text-center">
+            <div className="font-black text-xl text-violet-700">⭐{child.points || 0}</div>
+            <div className="text-xs text-gray-400 font-semibold">балів</div>
+          </div>
+          <div className="py-4 text-center">
+            <div className="font-black text-xl text-green-600">{childTasks.filter(t => t.status === 'active').length}</div>
+            <div className="text-xs text-gray-400 font-semibold">активних</div>
+          </div>
+          <div className="py-4 text-center">
+            <div className="font-black text-xl text-blue-600">{childTasks.filter(t => t.status === 'done').length}</div>
+            <div className="text-xs text-gray-400 font-semibold">виконано</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
+        {[{ id: 'tasks', label: '📋 Завдання' }, { id: 'stats', label: '📊 Статистика' }, { id: 'feed', label: '📰 Стрічка' }].map(st => (
+          <button key={st.id} onClick={() => setSubTab(st.id)}
+            className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all ${subTab === st.id ? 'bg-white shadow text-violet-700' : 'text-gray-500'}`}>
+            {st.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tasks sub-tab */}
+      {subTab === 'tasks' && (
+        <div className="space-y-3">
+          {childTasks.length === 0 && (
+            <div className="text-center py-12 text-gray-400">
+              <div className="text-4xl mb-2">📋</div>
+              <p className="font-bold">Завдань ще немає</p>
+            </div>
+          )}
+          {childTasks.map(task => (
+            <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{task.emoji || '📌'}</span>
+                <div className="flex-1">
+                  <div className="font-black text-gray-800">{task.title}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">+{task.points_reward}⭐</div>
+                </div>
+                <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                  task.status === 'done' ? 'bg-green-100 text-green-700' :
+                  task.status === 'pending_approval' ? 'bg-orange-100 text-orange-700' :
+                  'bg-blue-100 text-blue-700'}`}>
+                  {task.status === 'done' ? '✅ Готово' : task.status === 'pending_approval' ? '⏳ Перевірка' : '▶ Активне'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Stats sub-tab */}
+      {subTab === 'stats' && (
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-black text-gray-800">Виконані завдання</div>
+            <div className="flex bg-gray-100 rounded-xl p-1">
+              <button onClick={() => setStatRange(7)} className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all ${statRange === 7 ? 'bg-white shadow text-violet-700' : 'text-gray-400'}`}>7д</button>
+              <button onClick={() => setStatRange(30)} className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all ${statRange === 30 ? 'bg-white shadow text-violet-700' : 'text-gray-400'}`}>30д</button>
+            </div>
+          </div>
+          {/* Bar chart */}
+          <div className="flex items-end gap-1 h-32">
+            {statsData.map((d, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <div className="text-xs font-black text-violet-700" style={{ opacity: d.count > 0 ? 1 : 0 }}>{d.count || ''}</div>
+                <div className="w-full rounded-t-lg bg-gradient-to-t from-violet-500 to-pink-400 transition-all"
+                  style={{ height: `${(d.count / maxCount) * 80 + (d.count > 0 ? 8 : 2)}px`, minHeight: '2px' }} />
+                {statRange <= 7 && <div className="text-xs text-gray-400 font-semibold whitespace-nowrap" style={{ fontSize: '9px' }}>{d.label}</div>}
+              </div>
+            ))}
+          </div>
+          {statRange > 7 && (
+            <div className="flex justify-between mt-1">
+              <span className="text-xs text-gray-400">{statsData[0]?.label}</span>
+              <span className="text-xs text-gray-400">{statsData[statsData.length - 1]?.label}</span>
+            </div>
+          )}
+          <div className="mt-4 bg-violet-50 rounded-xl p-3 text-center">
+            <div className="font-black text-violet-700 text-lg">{statsData.reduce((a, d) => a + d.count, 0)}</div>
+            <div className="text-xs text-gray-500">завдань за {statRange} днів</div>
+          </div>
+        </div>
+      )}
+
+      {/* Feed sub-tab */}
+      {subTab === 'feed' && (
+        <div className="space-y-2">
+          {childFeed.length === 0 && (
+            <div className="text-center py-12 text-gray-400">
+              <div className="text-4xl mb-2">📰</div>
+              <p className="font-bold">Активності ще немає</p>
+            </div>
+          )}
+          {childFeed.map(f => (
+            <div key={f.id} className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="text-2xl">{f.event_type === 'task_done' ? '✅' : f.event_type === 'reward_purchased' ? '🎁' : f.event_type === 'points_added' ? '⭐' : '📝'}</div>
+                <div className="flex-1">
+                  <div className="font-bold text-gray-800 text-sm">{f.description || f.event_type}</div>
+                  <div className="text-xs text-gray-400">{new Date(f.created_at).toLocaleDateString('uk-UA')} · {new Date(f.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+                {f.points_delta !== 0 && f.points_delta != null && (
+                  <span className={`font-black text-sm ${f.points_delta > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {f.points_delta > 0 ? '+' : ''}{f.points_delta}⭐
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Onboarding (4 steps, shown when parent has 0 children) ────────────────────
+function OnboardingFlow({ familyId, user, onComplete }) {
+  const [step, setStep] = useState(0)
+  // Step 0: Add child (reuse AddChildModal inline)
+  const CHILD_EMOJIS = ['🦊','🐱','🐶','🐸','🦄','🐼','🐨','🦁','🐯','🐻','🦋','🐙']
+  const [childName, setChildName] = useState('')
+  const [childLogin, setChildLogin] = useState('')
+  const [childPassword, setChildPassword] = useState('')
+  const [childEmoji, setChildEmoji] = useState('🦊')
+  const [childError, setChildError] = useState('')
+  const [childLoading, setChildLoading] = useState(false)
+
+  // Step 2: pocket money
+  const [pocketEnabled, setPocketEnabled] = useState(false)
+  const [currency, setCurrency] = useState('UAH')
+  const [exchangeRate, setExchangeRate] = useState(4)
+  const [monoJarId, setMonoJarId] = useState('')
+  const [configSaving, setConfigSaving] = useState(false)
+
+  const STEPS = [
+    { emoji: '👶', title: 'Додай дитину', desc: 'Створи перший акаунт для дитини' },
+    { emoji: '📋', title: 'Бібліотека завдань', desc: 'Ознайомся зі стандартними завданнями' },
+    { emoji: '💰', title: 'Кишенькові гроші', desc: 'Налаштуй обмін зірок на гроші' },
+    { emoji: '🎉', title: 'Все готово!', desc: 'Починайте квест разом!' },
+  ]
+
+  const handleAddChild = async () => {
+    setChildError('')
+    setChildLoading(true)
+    const m = childLogin.trim().toLowerCase()
+    const { data: existing } = await supabase.from('users').select('id').eq('login', m).maybeSingle()
+    if (existing) { setChildError('Логін вже зайнятий'); setChildLoading(false); return }
+    const { error: err } = await supabase.from('users').insert({
+      login: m, password_hash: childPassword, display_name: childName.trim(),
+      role: 'child', family_id: familyId, avatar_emoji: childEmoji, points: 0,
+    })
+    if (err) { setChildError('Помилка створення'); setChildLoading(false); return }
+    setChildLoading(false)
+    setStep(1)
+  }
+
+  const handleSaveConfig = async () => {
+    setConfigSaving(true)
+    const payload = { family_id: familyId, pocket_money_enabled: pocketEnabled, currency, exchange_rate: Number(exchangeRate), mono_send_jar_id: monoJarId }
+    const { data: existing } = await supabase.from('family_configs').select('id').eq('family_id', familyId).maybeSingle()
+    if (existing) {
+      await supabase.from('family_configs').update(payload).eq('family_id', familyId)
+    } else {
+      await supabase.from('family_configs').insert(payload)
+    }
+    setConfigSaving(false)
+    setStep(3)
+  }
+
+  const currSym = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł' }[currency] || '₴'
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 to-pink-50 flex flex-col">
+      {/* Progress dots */}
+      <div className="flex justify-center gap-2 pt-8 pb-4">
+        {STEPS.map((_, i) => (
+          <div key={i} className={`rounded-full transition-all ${i === step ? 'w-8 h-3 bg-violet-600' : i < step ? 'w-3 h-3 bg-violet-300' : 'w-3 h-3 bg-gray-200'}`} />
+        ))}
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-6">
+        <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden">
+
+          {/* Step header */}
+          <div className="gradient-purple text-white p-6 text-center">
+            <div className="text-5xl mb-2">{STEPS[step].emoji}</div>
+            <div className="font-black text-xl">{STEPS[step].title}</div>
+            <div className="text-violet-200 text-sm mt-1">{STEPS[step].desc}</div>
+          </div>
+
+          <div className="p-6">
+
+            {/* STEP 0 — Add child */}
+            {step === 0 && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-black text-gray-600 mb-2">Аватар</label>
+                  <div className="flex flex-wrap gap-2">
+                    {CHILD_EMOJIS.map(em => (
+                      <button key={em} type="button" onClick={() => setChildEmoji(em)}
+                        className={`text-2xl p-2 rounded-xl transition-all ${childEmoji === em ? 'bg-violet-100 ring-2 ring-violet-500 scale-110' : 'hover:bg-gray-100'}`}>{em}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-black text-gray-600 mb-1">Ім'я дитини</label>
+                  <input value={childName} onChange={e => setChildName(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold"
+                    placeholder="Наприклад: Микита" />
+                </div>
+                <div>
+                  <label className="block text-sm font-black text-gray-600 mb-1">Логін</label>
+                  <input value={childLogin} onChange={e => setChildLogin(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold"
+                    placeholder="mykyta123" />
+                </div>
+                <div>
+                  <label className="block text-sm font-black text-gray-600 mb-1">Пароль</label>
+                  <input type="password" value={childPassword} onChange={e => setChildPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-2xl border-2 border-violet-200 focus:border-violet-500 focus:outline-none font-semibold" />
+                </div>
+                {childError && <p className="text-red-500 font-semibold text-sm">{childError}</p>}
+                <button onClick={handleAddChild} disabled={childLoading || !childName.trim() || !childLogin.trim() || !childPassword}
+                  className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl disabled:opacity-50 active:scale-95">
+                  {childLoading ? '⏳...' : '➡️ Далі'}
+                </button>
+              </div>
+            )}
+
+            {/* STEP 1 — Task library info */}
+            {step === 1 && (
+              <div className="space-y-3">
+                <p className="text-gray-600 font-semibold text-sm">Ось кілька ідей завдань для початку:</p>
+                {[
+                  { emoji: '🛏️', title: 'Застелити ліжко', pts: 5 },
+                  { emoji: '🍽️', title: 'Помити посуд', pts: 10 },
+                  { emoji: '📚', title: 'Прочитати книгу 20 хв', pts: 15 },
+                  { emoji: '🦷', title: 'Почистити зуби', pts: 5 },
+                  { emoji: '🐕', title: 'Вигуляти собаку', pts: 10 },
+                ].map(item => (
+                  <div key={item.title} className="flex items-center gap-3 bg-violet-50 rounded-2xl px-4 py-3">
+                    <span className="text-2xl">{item.emoji}</span>
+                    <span className="flex-1 font-bold text-gray-800">{item.title}</span>
+                    <span className="text-orange-500 font-black text-sm">+{item.pts}⭐</span>
+                  </div>
+                ))}
+                <p className="text-xs text-gray-400 font-semibold text-center pt-1">Завдання можна додати у вкладці «Завдання»</p>
+                <button onClick={() => setStep(2)}
+                  className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl active:scale-95">
+                  ➡️ Далі
+                </button>
+              </div>
+            )}
+
+            {/* STEP 2 — Pocket money */}
+            {step === 2 && (
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div onClick={() => setPocketEnabled(!pocketEnabled)}
+                    className={`w-12 h-6 rounded-full transition-all cursor-pointer ${pocketEnabled ? 'bg-green-500' : 'bg-gray-200'}`}>
+                    <div className={`w-6 h-6 bg-white rounded-full shadow transition-all ${pocketEnabled ? 'translate-x-6' : ''}`} />
+                  </div>
+                  <span className="font-black text-gray-700">Увімкнути обмін зірок на гроші</span>
+                </label>
+                {pocketEnabled && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-black text-gray-600 mb-1">Валюта</label>
+                      <div className="flex gap-2">
+                        {['UAH', 'USD', 'EUR', 'PLN'].map(c => (
+                          <button key={c} type="button" onClick={() => setCurrency(c)}
+                            className={`flex-1 py-2 rounded-xl font-black text-sm ${currency === c ? 'gradient-purple text-white' : 'bg-gray-100 text-gray-600'}`}>{c}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-black text-gray-600 mb-1">Скільки ⭐ за 1 {currSym}</label>
+                      <div className="flex items-center gap-3">
+                        <input type="range" min="1" max="20" value={exchangeRate} onChange={e => setExchangeRate(e.target.value)} className="flex-1 accent-violet-600" />
+                        <div className="bg-gradient-to-r from-green-400 to-emerald-500 text-white font-black rounded-xl px-4 py-2 min-w-[60px] text-center">{exchangeRate}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-black text-gray-600 mb-1">Mono Jar ID (необов'язково)</label>
+                      <input value={monoJarId} onChange={e => setMonoJarId(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold focus:outline-none focus:border-violet-400"
+                        placeholder="jar/..." />
+                    </div>
+                  </>
+                )}
+                <button onClick={handleSaveConfig} disabled={configSaving}
+                  className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl disabled:opacity-50 active:scale-95">
+                  {configSaving ? '⏳...' : '➡️ Далі'}
+                </button>
+                <button onClick={() => setStep(3)} className="w-full text-gray-400 font-bold text-sm py-2">
+                  Пропустити
+                </button>
+              </div>
+            )}
+
+            {/* STEP 3 — Done */}
+            {step === 3 && (
+              <div className="text-center space-y-4 py-4">
+                <div className="text-6xl">🎉</div>
+                <p className="font-black text-gray-800 text-xl">Все налаштовано!</p>
+                <p className="text-gray-500 font-semibold text-sm">Тепер додавай завдання, призи та починайте грати разом.</p>
+                <button onClick={onComplete}
+                  className="w-full gradient-purple text-white font-black py-4 rounded-2xl text-lg active:scale-95 shadow-lg">
+                  🚀 Почати!
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main ParentDashboard ───────────────────────────────────────────────────────
 export default function ParentDashboard() {
   const { user, logout } = useAuth()
@@ -649,6 +1042,15 @@ export default function ParentDashboard() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-100 to-pink-100">
       <div className="text-5xl animate-bounce">⭐</div>
     </div>
+  )
+
+  // Show onboarding when parent has no children yet
+  if (children.length === 0) return (
+    <OnboardingFlow
+      familyId={user.family_id}
+      user={user}
+      onComplete={() => loadData()}
+    />
   )
 
   return (
@@ -1006,40 +1408,49 @@ export default function ParentDashboard() {
         {/* ── CHILDREN TAB ────────────────────────────────────────────────── */}
         {tab === 'children' && (
           <>
-            <button onClick={() => setShowAddChild(true)}
-              className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl shadow active:scale-95">
-              + {t.addChild || 'Додати дитину'}
-            </button>
-            {children.length === 0 && (
-              <div className="text-center py-16">
-                <div className="text-6xl mb-4">👧</div>
-                <p className="text-xl font-bold text-gray-400">Дітей ще немає</p>
-              </div>
-            )}
-            <div className="space-y-3">
-              {children.map(child => {
-                const childTasks = tasks.filter(t => t.assigned_to === child.id)
-                const childDone = childTasks.filter(t => t.status === 'done').length
-                const childActive = childTasks.filter(t => t.status === 'active').length
-                return (
-                  <div key={child.id} className="bg-white rounded-2xl shadow-sm p-5">
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">{child.avatar_emoji}</div>
-                      <div className="flex-1">
-                        <div className="font-black text-gray-800 text-lg">{child.display_name}</div>
-                        <div className="text-gray-500 text-sm">@{child.login}</div>
-                        <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                          <span>⭐ {child.points || 0} балів</span>
-                          <span>📋 {childActive} активних</span>
-                          <span>✅ {childDone} виконано</span>
+            {selectedChild ? (
+              <ChildProfile
+                child={selectedChild}
+                tasks={tasks}
+                feedItems={feedItems}
+                onBack={() => setSelectedChild(null)}
+                onEdit={() => setEditChild(selectedChild)}
+              />
+            ) : (
+              <>
+                <button onClick={() => setShowAddChild(true)}
+                  className="w-full gradient-purple text-white font-black py-3.5 rounded-2xl shadow active:scale-95">
+                  + {t.addChild || 'Додати дитину'}
+                </button>
+                <div className="space-y-3">
+                  {children.map(child => {
+                    const childTasks = tasks.filter(tk => tk.assigned_to === child.id)
+                    const childDone = childTasks.filter(tk => tk.status === 'done').length
+                    const childActive = childTasks.filter(tk => tk.status === 'active').length
+                    const childPending = childTasks.filter(tk => tk.status === 'pending_approval').length
+                    return (
+                      <div key={child.id} onClick={() => setSelectedChild(child)}
+                        className="bg-white rounded-2xl shadow-sm p-5 cursor-pointer active:scale-95 transition-all hover:shadow-md">
+                        <div className="flex items-center gap-3">
+                          <div className="text-4xl">{child.avatar_emoji}</div>
+                          <div className="flex-1">
+                            <div className="font-black text-gray-800 text-lg">{child.display_name}</div>
+                            <div className="text-gray-500 text-sm">@{child.login}</div>
+                            <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                              <span>⭐ {child.points || 0} балів</span>
+                              <span>📋 {childActive} активних</span>
+                              <span>✅ {childDone} виконано</span>
+                              {childPending > 0 && <span className="text-orange-500 font-bold">⏳ {childPending}</span>}
+                            </div>
+                          </div>
+                          <div className="text-gray-300 font-black text-xl">›</div>
                         </div>
                       </div>
-                      <button onClick={() => setEditChild(child)} className="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-gray-500">✏️</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </>
         )}
 
