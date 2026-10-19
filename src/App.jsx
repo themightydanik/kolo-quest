@@ -5,6 +5,7 @@ import { LangProvider as LanguageProvider } from './i18n/index'
 import LoginPage from './pages/LoginPage'
 import ChildDashboard from './pages/ChildDashboard'
 import ParentDashboard from './pages/ParentDashboard'
+import PrivacyPage from './pages/PrivacyPage'
 
 function RequireAuth({ role, children }) {
   const { user, loading } = useAuth()
@@ -19,6 +20,7 @@ function AppRoutes() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-100 to-pink-100"><div className="text-5xl animate-bounce">⭐</div></div>
   return (
     <Routes>
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/login" element={user ? <Navigate to={user.role === 'parent' ? '/parent' : '/child'} replace /> : <LoginPage />} />
       <Route path="/child/*" element={<RequireAuth role="child"><ChildDashboard /></RequireAuth>} />
       <Route path="/parent/*" element={<RequireAuth role="parent"><ParentDashboard /></RequireAuth>} />
