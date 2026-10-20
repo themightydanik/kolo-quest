@@ -36,6 +36,7 @@
     </application>
 
     <!-- Permissions -->
-
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required for Google Play Billing (subscriptions via RevenueCat) -->
+    <uses-permission android:name="com.android.vending.BILLING" />
 </manifest>
