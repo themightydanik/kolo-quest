@@ -24,6 +24,8 @@ $$;
 
 -- 5. Function: verify child login (bcrypt check)
 -- Replaces the old verify_login that compared plaintext
+-- DROP first because CREATE OR REPLACE cannot change return-type signature
+DROP FUNCTION IF EXISTS verify_login(text, text);
 CREATE OR REPLACE FUNCTION verify_login(p_login TEXT, p_password TEXT)
 RETURNS TABLE(id UUID, login TEXT, display_name TEXT, role TEXT, family_id UUID, avatar_emoji TEXT, points INTEGER, total_points_earned INTEGER)
 LANGUAGE plpgsql
