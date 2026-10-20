@@ -8,6 +8,19 @@ const config: CapacitorConfig = {
     // Allow cleartext for localhost dev only — prod uses HTTPS
     allowMixedContent: false,
   },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000,
+      launchAutoHide: true,
+      backgroundColor: '#7026DC',  // matches gradient top color
+      androidSplashResourceName: 'splash',
+      showSpinner: false,
+    },
+    StatusBar: {
+      style: 'LIGHT',
+      backgroundColor: '#7026DC',
+    },
+  },
   server: {
     // On device, load from the bundled dist/ assets (no live-reload URL)
     // Uncomment below only for local development:
