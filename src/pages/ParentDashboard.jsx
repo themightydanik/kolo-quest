@@ -1337,62 +1337,6 @@ export default function ParentDashboard() {
         <MigrationBanner user={user} onDone={() => refreshUser(user.id)} />
       )}
 
-      {/* Freemium usage bar — shown only on free plan */}
-      {!isPremium && (
-        <div className="mx-4 mt-3 bg-white rounded-2xl shadow-sm px-4 py-3 flex items-center gap-3">
-          <div className="flex-1 space-y-1.5">
-            <div className="flex justify-between text-xs font-bold text-gray-500 mb-0.5">
-              <span>Безкоштовний план</span>
-              <button onClick={() => setGateType('task')} className="text-violet-600 font-black">Upgrade ✨</button>
-            </div>
-            {/* children */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-20">👧 Діти</span>
-              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                <div className="h-full rounded-full bg-violet-500 transition-all"
-                  style={{ width: `${Math.min((children.length / plan.children) * 100, 100)}%` }} />
-              </div>
-              <span className={`text-xs font-black w-10 text-right ${children.length >= plan.children ? 'text-red-500' : 'text-gray-500'}`}>
-                {children.length}/{plan.children}
-              </span>
-            </div>
-            {/* tasks */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-20">📋 Завдання</span>
-              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                <div className="h-full rounded-full bg-orange-400 transition-all"
-                  style={{ width: `${Math.min((regularTaskCount / plan.tasks_regular) * 100, 100)}%` }} />
-              </div>
-              <span className={`text-xs font-black w-10 text-right ${regularTaskCount >= plan.tasks_regular ? 'text-red-500' : 'text-gray-500'}`}>
-                {regularTaskCount}/{plan.tasks_regular}
-              </span>
-            </div>
-            {/* recurring */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-20">🔄 Регулярні</span>
-              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                <div className="h-full rounded-full bg-blue-400 transition-all"
-                  style={{ width: `${Math.min((recurringTaskCount / plan.tasks_recurring) * 100, 100)}%` }} />
-              </div>
-              <span className={`text-xs font-black w-10 text-right ${recurringTaskCount >= plan.tasks_recurring ? 'text-red-500' : 'text-gray-500'}`}>
-                {recurringTaskCount}/{plan.tasks_recurring}
-              </span>
-            </div>
-            {/* rewards */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-20">🎁 Призи</span>
-              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                <div className="h-full rounded-full bg-pink-400 transition-all"
-                  style={{ width: `${Math.min((rewards.length / plan.rewards) * 100, 100)}%` }} />
-              </div>
-              <span className={`text-xs font-black w-10 text-right ${rewards.length >= plan.rewards ? 'text-red-500' : 'text-gray-500'}`}>
-                {rewards.length}/{plan.rewards}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur shadow-sm overflow-x-auto">
         <div className="flex min-w-max">
@@ -1923,6 +1867,58 @@ export default function ParentDashboard() {
             </button>
           </>
         )}
+
+      {/* Freemium usage bar — at the bottom so it doesn't distract from main content */}
+      {!isPremium && (
+        <div className="mx-4 mb-4 bg-white rounded-2xl shadow-sm px-4 py-3">
+          <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
+            <span>🆓 Безкоштовний план</span>
+            <button onClick={() => setShowPaywall(true)} className="text-violet-600 font-black">Upgrade ✨</button>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">👧 Діти</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-violet-500 transition-all"
+                  style={{ width: `${Math.min((children.length / plan.children) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${children.length >= plan.children ? 'text-red-500' : 'text-gray-500'}`}>
+                {children.length}/{plan.children}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">📋 Завдання</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-orange-400 transition-all"
+                  style={{ width: `${Math.min((regularTaskCount / plan.tasks_regular) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${regularTaskCount >= plan.tasks_regular ? 'text-red-500' : 'text-gray-500'}`}>
+                {regularTaskCount}/{plan.tasks_regular}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">🔄 Регулярні</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-blue-400 transition-all"
+                  style={{ width: `${Math.min((recurringTaskCount / plan.tasks_recurring) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${recurringTaskCount >= plan.tasks_recurring ? 'text-red-500' : 'text-gray-500'}`}>
+                {recurringTaskCount}/{plan.tasks_recurring}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-20">🎁 Призи</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div className="h-full rounded-full bg-pink-400 transition-all"
+                  style={{ width: `${Math.min((rewards.length / plan.rewards) * 100, 100)}%` }} />
+              </div>
+              <span className={`text-xs font-black w-10 text-right ${rewards.length >= plan.rewards ? 'text-red-500' : 'text-gray-500'}`}>
+                {rewards.length}/{plan.rewards}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       </div>
     </div>
