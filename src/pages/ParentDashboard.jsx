@@ -6,6 +6,8 @@ import TaskCard from '../components/TaskCard'
 import { useSubscription } from '../lib/useSubscription'
 import { resetPurchases } from '../lib/purchases'
 import PaywallModal from '../components/PaywallModal'
+import FeedItem, { AvatarDisplay } from '../components/FeedItem'
+import AvatarPicker from '../components/AvatarPicker'
 
 // ── Freemium plan limits ───────────────────────────────────────────────────────
 export const PLANS = {
@@ -320,7 +322,6 @@ function AddRewardModal({ familyId, onClose, onSaved, editReward }) {
 // ── Add Child Modal ────────────────────────────────────────────────────────────
 function AddChildModal({ familyId, onClose, onSaved }) {
   const { t } = useLang()
-  const EMOJIS = ['🦊','🐱','🐶','🐸','🦄','🐼','🐨','🦁','🐯','🐻','🦋','🐙']
   const [name, setName] = useState('')
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
@@ -357,12 +358,9 @@ function AddChildModal({ familyId, onClose, onSaved }) {
         </div>
         <form onSubmit={handleSave} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-black text-gray-600 mb-2">{t.childEmoji}</label>
-            <div className="flex flex-wrap gap-2">
-              {EMOJIS.map(em => (
-                <button key={em} type="button" onClick={() => setEmoji(em)}
-                  className={`text-2xl p-2 rounded-xl transition-all ${emoji === em ? 'bg-violet-100 ring-2 ring-violet-500 scale-110' : 'hover:bg-gray-100'}`}>{em}</button>
-              ))}
+            <label className="block text-sm font-black text-gray-600 mb-2">{t.childEmoji || 'Аватар дитини'}</label>
+            <div className="flex justify-center">
+              <AvatarPicker value={emoji} onChange={setEmoji} userId={null} allowPhoto={false} size="lg" />
             </div>
           </div>
           <div>
@@ -752,7 +750,6 @@ function ChildProfile({ child, tasks, feedItems, onBack, onEdit }) {
 function OnboardingFlow({ familyId, user, onComplete }) {
   const [step, setStep] = useState(0)
   // Step 0: Add child (reuse AddChildModal inline)
-  const CHILD_EMOJIS = ['🦊','🐱','🐶','🐸','🦄','🐼','🐨','🦁','🐯','🐻','🦋','🐙']
   const [childName, setChildName] = useState('')
   const [childLogin, setChildLogin] = useState('')
   const [childPassword, setChildPassword] = useState('')
@@ -834,11 +831,8 @@ function OnboardingFlow({ familyId, user, onComplete }) {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-black text-gray-600 mb-2">Аватар</label>
-                  <div className="flex flex-wrap gap-2">
-                    {CHILD_EMOJIS.map(em => (
-                      <button key={em} type="button" onClick={() => setChildEmoji(em)}
-                        className={`text-2xl p-2 rounded-xl transition-all ${childEmoji === em ? 'bg-violet-100 ring-2 ring-violet-500 scale-110' : 'hover:bg-gray-100'}`}>{em}</button>
-                    ))}
+                  <div className="flex justify-center">
+                    <AvatarPicker value={childEmoji} onChange={setChildEmoji} userId={null} allowPhoto={false} size="lg" />
                   </div>
                 </div>
                 <div>
@@ -1056,8 +1050,7 @@ export default function ParentDashboard() {
   const { isPremium, refresh: refreshSubscription } = useSubscription(user?.id)
 
   // Profile
-  const PARENT_EMOJIS = ['👨', '👩', '🧑', '👴', '👵', '🧔', '👨‍💼', '👩‍💼']
-  const [profileEmoji, setProfileEmoji] = useState(user.avatar_emoji || '👨')
+  const [profileEmoji, setProfileEmoji] = useState(user.avatar_url || user.avatar_emoji || '👨')
   const [profileName, setProfileName] = useState(user.display_name || '')
   const [profileSaving, setProfileSaving] = useState(false)
 
@@ -1076,7 +1069,7 @@ export default function ParentDashboard() {
       supabase.from('challenges').select('*, challenge_tasks(*)').eq('family_id', user.family_id).order('created_at', { ascending: false }),
       supabase.from('reward_purchases').select('*, rewards(title, emoji, points_cost), users!reward_purchases_child_id_fkey(display_name, avatar_emoji)')
         .eq('rewards.family_id', user.family_id).order('purchased_at', { ascending: false }),
-      supabase.from('activity_feed').select('*, users!activity_feed_child_id_fkey(display_name, avatar_emoji)')
+      supabase.from('activity_feed').select('*, reactions, users!activity_feed_child_id_fkey(display_name, avatar_emoji, avatar_url)')
         .eq('family_id', user.family_id).order('created_at', { ascending: false }).limit(100),
       supabase.from('point_exchanges').select('*, users!point_exchanges_child_id_fkey(display_name, avatar_emoji)')
         .eq('family_id', user.family_id).order('created_at', { ascending: false }),
@@ -1162,7 +1155,11 @@ export default function ParentDashboard() {
   // ── Profile save ──────────────────────────────────────────────────────────
   const handleProfileSave = async () => {
     setProfileSaving(true)
-    await supabase.from('users').update({ display_name: profileName, avatar_emoji: profileEmoji }).eq('id', user.id)
+    const isPhotoUrl = profileEmoji?.startsWith('http')
+    await supabase.from('users').update({
+      display_name: profileName,
+      ...(isPhotoUrl ? { avatar_url: profileEmoji } : { avatar_emoji: profileEmoji, avatar_url: null }),
+    }).eq('id', user.id)
 
     // Upsert family config
     const configPayload = {
@@ -1303,7 +1300,13 @@ export default function ParentDashboard() {
         <div className="relative flex justify-between items-start mb-4">
           <div>
             <p className="text-violet-200 font-semibold text-sm">{t.parentPanel || 'Панель батьків'}</p>
-            <h1 className="text-2xl font-black">{user.avatar_emoji} {user.display_name}</h1>
+            <h1 className="text-2xl font-black flex items-center gap-2">
+              {user.avatar_url?.startsWith('http')
+                ? <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-xl object-cover inline-block" />
+                : user.avatar_emoji
+              }
+              {user.display_name}
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher light />
@@ -1832,30 +1835,17 @@ export default function ParentDashboard() {
               </div>
             )}
             <div className="space-y-3">
-              {feedItems.map(item => {
-                const p = item.payload || {}
-                const evtMap = {
-                  task_submitted: { emoji: '📋', text: `Відправив на перевірку "${p.task_title || ''}"` },
-                  task_approved: { emoji: '✅', text: `Виконав "${p.task_title || ''}" (+${p.points || 0} ⭐)` },
-                  reward_purchased: { emoji: '🎁', text: `Купив "${p.reward_title || ''}" (${p.points_spent || 0} ⭐)` },
-                  points_exchanged: { emoji: '💰', text: `Обміняв ${p.points_spent || 0} ⭐ на ${p.money_amount || 0} ${p.currency || ''}` },
-                  challenge_completed: { emoji: '🏆', text: `Завершив челендж "${p.challenge_title || ''}"` },
-                }
-                const evt = evtMap[item.event_type] || { emoji: '🌟', text: item.event_type }
-                return (
-                  <div key={item.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
-                    <div className="text-2xl">{item.users?.avatar_emoji || evt.emoji}</div>
-                    <div className="flex-1">
-                      <div className="font-bold text-gray-800 text-sm">
-                        <span className="font-black">{item.users?.display_name}</span>: {evt.text}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(item.created_at).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+              {feedItems.map(item => (
+                <FeedItem
+                  key={item.id}
+                  item={item}
+                  currentUserId={user.id}
+                  canReact={true}
+                  onReacted={(updatedReactions) => {
+                    setFeedItems(prev => prev.map(f => f.id === item.id ? { ...f, reactions: updatedReactions } : f))
+                  }}
+                />
+              ))}
             </div>
           </>
         )}
@@ -1866,15 +1856,10 @@ export default function ParentDashboard() {
             {/* Avatar */}
             <div className="bg-white rounded-2xl p-5 shadow-sm">
               <h3 className="font-black text-gray-800 mb-3">👤 Аватар</h3>
-              <div className="text-center mb-3">
-                <div className="text-5xl">{profileEmoji}</div>
+              <div className="flex justify-center">
+                <AvatarPicker value={profileEmoji} onChange={setProfileEmoji} userId={user.id} size="lg" allowPhoto={true} />
               </div>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {PARENT_EMOJIS.map(em => (
-                  <button key={em} onClick={() => setProfileEmoji(em)}
-                    className={`text-2xl p-2 rounded-xl ${profileEmoji === em ? 'bg-violet-100 ring-2 ring-violet-500' : 'hover:bg-gray-100'}`}>{em}</button>
-                ))}
-              </div>
+              <p className="text-center text-xs text-gray-400 mt-2">Натисни щоб змінити</p>
             </div>
 
             {/* Name */}

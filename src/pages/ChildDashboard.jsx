@@ -3,6 +3,8 @@ import { useAuth } from '../lib/auth'
 import { useLang, LanguageSwitcher } from '../i18n/index'
 import { supabase } from '../lib/supabase'
 import TaskCard from '../components/TaskCard'
+import FeedItem, { AvatarDisplay } from '../components/FeedItem'
+import AvatarPicker from '../components/AvatarPicker'
 
 // ─── Level system ────────────────────────────────────────────────────────────
 const LEVELS = [
@@ -211,7 +213,7 @@ export default function ChildDashboard() {
   const deltaTimer = useRef(null)
 
   // Profile edit
-  const [profileEmoji, setProfileEmoji] = useState(user.avatar_emoji || '🦊')
+  const [profileEmoji, setProfileEmoji] = useState(user.avatar_url || user.avatar_emoji || '🦊')
   const [profileName, setProfileName] = useState(user.display_name || '')
   const [profileLogin, setProfileLogin] = useState(user.login || '')
   const [profilePassword, setProfilePassword] = useState('')
@@ -243,7 +245,7 @@ export default function ChildDashboard() {
       supabase.from('users').select('points, total_points_earned').eq('id', user.id).single(),
       supabase.from('challenges').select('*, challenge_tasks(*)').eq('family_id', user.family_id).eq('assigned_to', user.id).eq('status', 'active'),
       supabase.from('reward_purchases').select('*, rewards(title, emoji, points_cost)').eq('child_id', user.id).order('purchased_at', { ascending: false }),
-      supabase.from('activity_feed').select('*').eq('family_id', user.family_id).order('created_at', { ascending: false }).limit(50),
+      supabase.from('activity_feed').select('*, reactions, users!activity_feed_child_id_fkey(display_name, avatar_emoji, avatar_url)').eq('family_id', user.family_id).order('created_at', { ascending: false }).limit(50),
       supabase.from('user_achievements').select('*').eq('user_id', user.id),
       supabase.from('family_configs').select('*').eq('family_id', user.family_id).single(),
     ])
@@ -331,7 +333,10 @@ export default function ChildDashboard() {
       p_login: profileLogin || null,
       p_password: profilePassword || null,
     })
-    await supabase.from('users').update({ avatar_emoji: profileEmoji }).eq('id', user.id)
+    const isPhotoUrl = profileEmoji?.startsWith('http')
+    await supabase.from('users').update({
+      ...(isPhotoUrl ? { avatar_url: profileEmoji } : { avatar_emoji: profileEmoji, avatar_url: null }),
+    }).eq('id', user.id)
     setProfileSaving(false)
     setProfilePassword('')
   }
@@ -466,7 +471,13 @@ export default function ChildDashboard() {
         <div className="relative flex justify-between items-start">
           <div>
             <p className="text-violet-200 font-semibold text-sm">{t.hello || 'Привіт,'}</p>
-            <h1 className="text-2xl font-black">{user.avatar_emoji} {user.display_name}!</h1>
+            <h1 className="text-2xl font-black flex items-center gap-2">
+              {user.avatar_url?.startsWith('http')
+                ? <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-xl object-cover inline-block" />
+                : user.avatar_emoji
+              }
+              {user.display_name}!
+            </h1>
             <p className="text-violet-200 text-sm font-semibold">{level.emoji} {level.name}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -1066,28 +1077,14 @@ export default function ChildDashboard() {
               </div>
             )}
             <div className="space-y-3">
-              {feedItems.map(item => {
-                const p = item.payload || {}
-                const evtMap = {
-                  task_submitted: { emoji: '📋', text: `Виконав завдання "${p.task_title || ''}" (+${p.points || 0} ⭐)` },
-                  task_approved: { emoji: '✅', text: `Батьки підтвердили "${p.task_title || ''}"` },
-                  reward_purchased: { emoji: '🎁', text: `Купив приз "${p.reward_title || ''}" (${p.points_spent || 0} ⭐)` },
-                  points_exchanged: { emoji: '💰', text: `Обміняв ${p.points_spent || 0} ⭐ на ${p.money_amount || 0} ${p.currency || ''}` },
-                  challenge_completed: { emoji: '🏆', text: `Завершив челендж "${p.challenge_title || ''}"` },
-                }
-                const evt = evtMap[item.event_type] || { emoji: '🌟', text: item.event_type }
-                return (
-                  <div key={item.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
-                    <div className="text-2xl">{evt.emoji}</div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-800 text-sm">{evt.text}</div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(item.created_at).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+              {feedItems.map(item => (
+                <FeedItem
+                  key={item.id}
+                  item={item}
+                  currentUserId={user.id}
+                  canReact={false}
+                />
+              ))}
             </div>
           </>
         )}
@@ -1097,17 +1094,10 @@ export default function ChildDashboard() {
           <>
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-black text-gray-800 mb-4 text-lg">👤 Аватар</h3>
-              <div className="text-center mb-4">
-                <div className="text-6xl mb-2">{profileEmoji}</div>
+              <div className="flex justify-center">
+                <AvatarPicker value={profileEmoji} onChange={setProfileEmoji} userId={user.id} size="lg" allowPhoto={true} />
               </div>
-              <div className="grid grid-cols-8 gap-2">
-                {AVATARS.map(em => (
-                  <button key={em} onClick={() => setProfileEmoji(em)}
-                    className={`text-2xl p-1 rounded-xl transition-all ${profileEmoji === em ? 'bg-violet-100 ring-2 ring-violet-500' : 'hover:bg-gray-100'}`}>
-                    {em}
-                  </button>
-                ))}
-              </div>
+              <p className="text-center text-xs text-gray-400 mt-2">Натисни щоб змінити</p>
             </div>
 
             <div className="bg-white rounded-2xl p-5 shadow-sm space-y-3">
