@@ -13,7 +13,14 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
 -- 3. Install pgcrypto extension (for bcrypt — usually already enabled)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- 4. Function: hash a password with bcrypt (used when creating a child account)
+-- 4. Drop existing functions before recreating (avoids signature-change errors)
+DROP FUNCTION IF EXISTS verify_login(text, text);
+DROP FUNCTION IF EXISTS create_child_account(uuid, text, text, text, text);
+DROP FUNCTION IF EXISTS update_child_credentials(uuid, text, text, text);
+DROP FUNCTION IF EXISTS hash_password(text);
+DROP FUNCTION IF EXISTS link_parent_auth(uuid, uuid, text);
+
+-- Function: hash a password with bcrypt (used when creating a child account)
 CREATE OR REPLACE FUNCTION hash_password(p_password TEXT)
 RETURNS TEXT
 LANGUAGE sql
@@ -24,8 +31,6 @@ $$;
 
 -- 5. Function: verify child login (bcrypt check)
 -- Replaces the old verify_login that compared plaintext
--- DROP first because CREATE OR REPLACE cannot change return-type signature
-DROP FUNCTION IF EXISTS verify_login(text, text);
 CREATE OR REPLACE FUNCTION verify_login(p_login TEXT, p_password TEXT)
 RETURNS TABLE(id UUID, login TEXT, display_name TEXT, role TEXT, family_id UUID, avatar_emoji TEXT, points INTEGER, total_points_earned INTEGER)
 LANGUAGE plpgsql
