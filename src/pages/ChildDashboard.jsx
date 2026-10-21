@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import TaskCard from '../components/TaskCard'
 import FeedItem, { AvatarDisplay } from '../components/FeedItem'
 import AvatarPicker from '../components/AvatarPicker'
+import PetRoom from '../components/PetRoom'
 
 // ─── Level system ────────────────────────────────────────────────────────────
 const LEVELS = [
@@ -209,6 +210,7 @@ export default function ChildDashboard() {
   const [purchaseTarget, setPurchaseTarget] = useState(null)
   const [receiptPurchase, setReceiptPurchase] = useState(null)
   const [showPurchaseHistory, setShowPurchaseHistory] = useState(false)
+  const [showPetRoom, setShowPetRoom] = useState(false)
   const [pointsDelta, setPointsDelta] = useState(null)
   const deltaTimer = useRef(null)
 
@@ -477,6 +479,9 @@ export default function ChildDashboard() {
         />
       )}
 
+      {/* Pet Room overlay */}
+      {showPetRoom && <PetRoom user={user} onClose={() => setShowPetRoom(false)} />}
+
       {/* Header */}
       <div className="gradient-purple text-white px-4 pt-5 pb-14 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full translate-x-1/2 -translate-y-1/2" />
@@ -493,6 +498,11 @@ export default function ChildDashboard() {
             <p className="text-violet-200 text-sm font-semibold">{level.emoji} {level.name}</p>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowPetRoom(true)}
+              className="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-white/20 active:scale-90 transition-all">
+              <span className="text-xl leading-none">🐾</span>
+              <span className="text-[9px] text-violet-200 font-bold mt-0.5">Пет</span>
+            </button>
             <LanguageSwitcher light />
             <button onClick={logout}
               className="text-violet-200 hover:text-white text-sm font-bold bg-white/10 px-3 py-1.5 rounded-full transition-colors">
