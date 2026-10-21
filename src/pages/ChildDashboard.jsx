@@ -237,6 +237,18 @@ export default function ChildDashboard() {
   }
 
   const loadData = useCallback(async () => {
+    // Reset recurring tasks completed on previous days (safe to call repeatedly)
+    supabase.rpc('reset_recurring_tasks').then(({ data, error }) => {
+      if (!error && data > 0) {
+        // Some tasks were reset — reload tasks list after brief delay
+        setTimeout(() => {
+          supabase.from('tasks').select('*').eq('family_id', user.family_id).eq('assigned_to', user.id)
+            .order('is_mandatory', { ascending: false }).order('created_at', { ascending: false })
+            .then(({ data: t }) => { if (t) setTasks(t) })
+        }, 300)
+      }
+    })
+
     const [tasksRes, rewardsRes, userRes, challengesRes, purchasesRes, feedRes, achRes, configRes] = await Promise.all([
       supabase.from('tasks').select('*').eq('family_id', user.family_id).eq('assigned_to', user.id)
         .order('is_mandatory', { ascending: false }).order('created_at', { ascending: false }),

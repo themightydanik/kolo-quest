@@ -1116,6 +1116,9 @@ export default function ParentDashboard() {
   const [configSaving, setConfigSaving] = useState(false)
 
   const loadData = useCallback(async () => {
+    // Reset recurring tasks completed on previous days (safe to call repeatedly)
+    supabase.rpc('reset_recurring_tasks').catch(() => {}) // fire-and-forget, ignore if RPC not yet deployed
+
     const [childrenRes, tasksRes, rewardsRes, challengesRes, purchasesRes, feedRes, exchangesRes, configRes] = await Promise.all([
       supabase.from('users').select('*').eq('family_id', user.family_id).eq('role', 'child'),
       supabase.from('tasks').select('*').eq('family_id', user.family_id).order('created_at', { ascending: false }),
@@ -1157,7 +1160,18 @@ export default function ParentDashboard() {
 
   // ── Task approve / reject ─────────────────────────────────────────────────
   const handleApproveTask = async (taskId, childId, taskPoints) => {
-    await supabase.from('tasks').update({ status: 'done', updated_at: new Date().toISOString() }).eq('id', taskId)
+    const task = tasks.find(t => t.id === taskId)
+    if (task?.is_recurring) {
+      // For recurring tasks: set done + record last_completed_date so reset_recurring_tasks
+      // knows NOT to reset it until the next calendar day
+      await supabase.rpc('approve_task_recurring', { p_task_id: taskId })
+        .catch(() =>
+          // Fallback if RPC not yet deployed: plain update without last_completed_date
+          supabase.from('tasks').update({ status: 'done', updated_at: new Date().toISOString() }).eq('id', taskId)
+        )
+    } else {
+      await supabase.from('tasks').update({ status: 'done', updated_at: new Date().toISOString() }).eq('id', taskId)
+    }
     const { data: child } = await supabase.from('users').select('points, total_points_earned').eq('id', childId).single()
     if (child) {
       await supabase.from('users').update({
@@ -1165,7 +1179,6 @@ export default function ParentDashboard() {
         total_points_earned: (child.total_points_earned || 0) + taskPoints,
       }).eq('id', childId)
     }
-    const task = tasks.find(t => t.id === taskId)
     await supabase.from('activity_feed').insert({
       family_id: user.family_id, child_id: childId,
       event_type: 'task_approved',
