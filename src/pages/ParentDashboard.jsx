@@ -558,8 +558,93 @@ function EditChildModal({ child, onClose, onSaved }) {
   )
 }
 
+// ── ChildTasksView — tasks with filters, status badges, timestamps ────────────
+function ChildTasksView({ tasks }) {
+  const [filter, setFilter] = useState('all')
+
+  const filtered = tasks.filter(t => {
+    if (filter === 'all') return true
+    if (filter === 'active') return t.status === 'active' && !t.is_recurring
+    if (filter === 'pending') return t.status === 'pending_approval'
+    if (filter === 'done') return t.status === 'done'
+    if (filter === 'recurring') return t.is_recurring
+    return true
+  })
+
+  const counts = {
+    all: tasks.length,
+    active: tasks.filter(t => t.status === 'active' && !t.is_recurring).length,
+    pending: tasks.filter(t => t.status === 'pending_approval').length,
+    done: tasks.filter(t => t.status === 'done').length,
+    recurring: tasks.filter(t => t.is_recurring).length,
+  }
+
+  const FILTERS = [
+    { id: 'all', label: 'Всі', emoji: '📋' },
+    { id: 'active', label: 'Активні', emoji: '▶' },
+    { id: 'pending', label: 'Перевірка', emoji: '⏳' },
+    { id: 'done', label: 'Виконані', emoji: '✅' },
+    { id: 'recurring', label: 'Регулярні', emoji: '🔄' },
+  ]
+
+  return (
+    <div>
+      {/* Filter chips */}
+      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-hide">
+        {FILTERS.map(f => (
+          <button key={f.id} onClick={() => setFilter(f.id)}
+            className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black transition-all ${
+              filter === f.id ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}>
+            {f.emoji} {f.label}
+            {counts[f.id] > 0 && <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-xs ${filter === f.id ? 'bg-white/30' : 'bg-gray-200'}`}>{counts[f.id]}</span>}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-10 text-gray-400">
+          <div className="text-4xl mb-2">📋</div>
+          <p className="font-bold">Завдань немає</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {filtered.map(task => {
+          const doneAt = task.status === 'done' && task.updated_at ? new Date(task.updated_at) : null
+          return (
+            <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl mt-0.5">{task.emoji || (task.is_recurring ? '🔄' : '📌')}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black text-gray-800">{task.title}</div>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-xs text-gray-400">+{task.points_reward}⭐</span>
+                    {task.is_recurring && <span className="text-xs text-violet-500 font-bold">🔄 Регулярне</span>}
+                    {doneAt && (
+                      <span className="text-xs text-gray-400">
+                        {doneAt.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })} · {doneAt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className={`flex-shrink-0 text-xs font-black px-2.5 py-1 rounded-full ${
+                  task.status === 'done' ? 'bg-green-100 text-green-700' :
+                  task.status === 'pending_approval' ? 'bg-orange-100 text-orange-700' :
+                  'bg-blue-100 text-blue-700'}`}>
+                  {task.status === 'done' ? '✅ Готово' : task.status === 'pending_approval' ? '⏳ Перевірка' : '▶ Активне'}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── ChildProfile (in-tab view when clicking a child card) ─────────────────────
-function ChildProfile({ child, tasks, feedItems, onBack, onEdit }) {
+function ChildProfile({ child, tasks, feedItems, parentId, onFeedReacted, onBack, onEdit }) {
   const [subTab, setSubTab] = useState('tasks')
   const [statRange, setStatRange] = useState(7)
 
@@ -609,7 +694,12 @@ function ChildProfile({ child, tasks, feedItems, onBack, onEdit }) {
       <div className="bg-white rounded-3xl shadow-sm overflow-hidden mb-4">
         <div className="gradient-purple p-5 text-white">
           <div className="flex items-center gap-4">
-            <div className="text-5xl">{child.avatar_emoji}</div>
+            <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white/20 flex items-center justify-center flex-shrink-0">
+              {child.avatar_url?.startsWith('http')
+                ? <img src={child.avatar_url} alt={child.display_name} className="w-full h-full object-cover" />
+                : <span className="text-4xl">{child.avatar_emoji || '🦊'}</span>
+              }
+            </div>
             <div className="flex-1">
               <div className="font-black text-xl">{child.display_name}</div>
               <div className="text-violet-200 text-sm">@{child.login}</div>
@@ -654,31 +744,7 @@ function ChildProfile({ child, tasks, feedItems, onBack, onEdit }) {
 
       {/* Tasks sub-tab */}
       {subTab === 'tasks' && (
-        <div className="space-y-3">
-          {childTasks.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <div className="text-4xl mb-2">📋</div>
-              <p className="font-bold">Завдань ще немає</p>
-            </div>
-          )}
-          {childTasks.map(task => (
-            <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{task.emoji || '📌'}</span>
-                <div className="flex-1">
-                  <div className="font-black text-gray-800">{task.title}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">+{task.points_reward}⭐</div>
-                </div>
-                <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
-                  task.status === 'done' ? 'bg-green-100 text-green-700' :
-                  task.status === 'pending_approval' ? 'bg-orange-100 text-orange-700' :
-                  'bg-blue-100 text-blue-700'}`}>
-                  {task.status === 'done' ? '✅ Готово' : task.status === 'pending_approval' ? '⏳ Перевірка' : '▶ Активне'}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ChildTasksView tasks={childTasks} />
       )}
 
       {/* Stats sub-tab */}
@@ -725,20 +791,8 @@ function ChildProfile({ child, tasks, feedItems, onBack, onEdit }) {
             </div>
           )}
           {childFeed.map(f => (
-            <div key={f.id} className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">{f.event_type === 'task_done' ? '✅' : f.event_type === 'reward_purchased' ? '🎁' : f.event_type === 'points_added' ? '⭐' : '📝'}</div>
-                <div className="flex-1">
-                  <div className="font-bold text-gray-800 text-sm">{f.description || f.event_type}</div>
-                  <div className="text-xs text-gray-400">{new Date(f.created_at).toLocaleDateString('uk-UA')} · {new Date(f.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-                {f.points_delta !== 0 && f.points_delta != null && (
-                  <span className={`font-black text-sm ${f.points_delta > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {f.points_delta > 0 ? '+' : ''}{f.points_delta}⭐
-                  </span>
-                )}
-              </div>
-            </div>
+            <FeedItem key={f.id} item={{ ...f, users: child }} currentUserId={parentId} canReact={true}
+              onReacted={(updatedReactions) => onFeedReacted?.(f.id, updatedReactions)} />
           ))}
         </div>
       )}
@@ -1631,6 +1685,10 @@ export default function ParentDashboard() {
                 child={selectedChild}
                 tasks={tasks}
                 feedItems={feedItems}
+                parentId={user.id}
+                onFeedReacted={(feedId, updatedReactions) => {
+                  setFeedItems(prev => prev.map(f => f.id === feedId ? { ...f, reactions: updatedReactions } : f))
+                }}
                 onBack={() => setSelectedChild(null)}
                 onEdit={() => setEditChild(selectedChild)}
               />

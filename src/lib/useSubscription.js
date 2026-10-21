@@ -1,5 +1,30 @@
 import { useState, useEffect, useCallback } from 'react'
 import { checkEntitlement, initPurchases } from './purchases'
+import { supabase } from './supabase'
+
+// ── Dev / tester allowlist ─────────────────────────────────────────────────────
+// Accounts in this list get isPremium=true without a RevenueCat purchase.
+// Add email addresses of developers and testers here.
+const DEV_ALLOWLIST_EMAILS = [
+  'daniilkolomoets@gmail.com',
+  // Add more tester emails here:
+  // 'tester@example.com',
+]
+
+async function isDevAccount(userId) {
+  if (!userId) return false
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', userId)
+      .single()
+    if (data?.email && DEV_ALLOWLIST_EMAILS.includes(data.email.toLowerCase())) {
+      return true
+    }
+  } catch { /* ignore */ }
+  return false
+}
 
 // ── useSubscription ────────────────────────────────────────────────────────────
 // Hook that tracks premium status for the current user.
@@ -13,6 +38,12 @@ export function useSubscription(userId) {
     if (!userId) { setIsPremium(false); setLoading(false); return }
     setLoading(true)
     try {
+      // Check dev/tester allowlist first — bypasses RevenueCat entirely
+      const isDev = await isDevAccount(userId)
+      if (isDev) {
+        setIsPremium(true)
+        return
+      }
       // Init RC with this user so their purchases are associated
       await initPurchases(userId)
       const active = await checkEntitlement(userId)

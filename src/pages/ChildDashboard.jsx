@@ -417,10 +417,10 @@ export default function ChildDashboard() {
     { id: 'profile', label: 'Профіль', emoji: '👤' },
   ]
 
-  const activeTasks = tasks.filter(t => t.status === 'active' && !t.is_recurring)
+  const activeTasks = tasks.filter(t => t.status === 'active')
   const pendingTasks = tasks.filter(t => t.status === 'pending_approval')
   const doneTasks = tasks.filter(t => t.status === 'done')
-  const recurringTasks = tasks.filter(t => t.is_recurring)
+  const recurringTasks = tasks.filter(t => t.is_recurring && t.status === 'active')
   const mandatoryTasks = tasks.filter(t => t.is_mandatory && t.status === 'active')
 
   const level = getLevel(totalPointsEarned)
@@ -610,15 +610,24 @@ export default function ChildDashboard() {
                       {t.doneTasks || 'Виконані'}
                     </h2>
                     <div className="space-y-3 opacity-70">
-                      {doneTasks.map(task => (
-                        <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm border border-green-100">
-                          <div className="flex items-center justify-between">
-                            <div className="font-black text-gray-800">{task.title}</div>
-                            <span className="text-green-600 font-black text-sm">✅ +{task.points} ⭐</span>
+                      {doneTasks.map(task => {
+                        const doneAt = task.updated_at ? new Date(task.updated_at) : null
+                        return (
+                          <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm border border-green-100">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-black text-gray-800">{task.title}</div>
+                                {doneAt && (
+                                  <div className="text-xs text-gray-400 mt-0.5">
+                                    {doneAt.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })} · {doneAt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-green-600 font-black text-sm ml-2">✅ +{task.points} ⭐</span>
+                            </div>
                           </div>
-                          <div className="text-center mt-2 text-green-500 font-black text-sm">🎉 Молодець!</div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}
