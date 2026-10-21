@@ -1117,7 +1117,7 @@ export default function ParentDashboard() {
 
   const loadData = useCallback(async () => {
     // Reset recurring tasks completed on previous days (safe to call repeatedly)
-    supabase.rpc('reset_recurring_tasks').catch(() => {}) // fire-and-forget, ignore if RPC not yet deployed
+    supabase.rpc('reset_recurring_tasks').then(() => {}, () => {}) // fire-and-forget
 
     const [childrenRes, tasksRes, rewardsRes, challengesRes, purchasesRes, feedRes, exchangesRes, configRes] = await Promise.all([
       supabase.from('users').select('*').eq('family_id', user.family_id).eq('role', 'child'),
@@ -1180,7 +1180,7 @@ export default function ParentDashboard() {
       }).eq('id', childId)
     }
     // Reward pet food when task approved (fire-and-forget)
-    supabase.rpc('reward_pet_food', { p_child_id: childId, p_amount: 1 }).catch(() => {})
+    supabase.rpc('reward_pet_food', { p_child_id: childId, p_amount: 1 }).then(() => {}, () => {})
     await supabase.from('activity_feed').insert({
       family_id: user.family_id, child_id: childId,
       event_type: 'task_approved',

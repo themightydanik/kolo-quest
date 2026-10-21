@@ -61,7 +61,7 @@ INSERT INTO pet_shop_items (id, category, name, emoji, description, price, stat_
   -- Premium toys
   ('toy_fish_lure', 'toy',  'Рибка на мотузці','🎣','Улюблена! +30 радості',          25, '{"happiness": 30}', true, 11),
   ('toy_laser',     'toy',  'Лазерна указка','🔴', 'Неможливо зупинитись! +25 радості',20, '{"happiness": 25}', true, 12),
-  ('toy_feather',   'toy',  'Пір\'ячко',     '🪶', '+20 радості, -5 енергії',         15, '{"happiness": 20, "energy": -5}', true, 13),
+  ('toy_feather',   'toy',  'Пірʼячко',      '🪶', '+20 радості, -5 енергії',         15, '{"happiness": 20, "energy": -5}', true, 13),
   -- Outfits
   ('outfit_default','outfit','Звичний вигляд','😺','Стандартний образ',               0,  '{}', false, 20),
   ('outfit_crown',  'outfit','Королівська корона','👑','Для справжнього аристократа', 30, '{}', true, 21),

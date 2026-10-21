@@ -185,7 +185,7 @@ export default function PetRoom({ user, onClose }) {
         p_food_premium: pet.foodPremium || 0,
         p_toy_basic:    pet.toyCount,
         p_toy_premium:  pet.toyPremium || 0,
-      }).catch(() => {})
+      }).then(() => {}, () => {})
     }, 3000)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
   }, [pet, storageKey, user?.id, dbLoaded])
@@ -309,7 +309,7 @@ export default function PetRoom({ user, onClose }) {
   }, [user?.id, user?.family_id])
 
   const handleEquipOutfit = useCallback(async (outfitId) => {
-    await supabase.rpc('equip_pet_outfit', { p_child_id: user.id, p_outfit_id: outfitId }).catch(() => {})
+    await supabase.rpc('equip_pet_outfit', { p_child_id: user.id, p_outfit_id: outfitId }).then(() => {}, () => {})
     setPet(p => ({ ...p, activeOutfit: outfitId }))
     showToast('Образ змінено! ✨')
   }, [user?.id])
