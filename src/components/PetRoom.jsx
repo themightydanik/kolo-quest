@@ -5,6 +5,9 @@ import KitchenRoom from './rooms/KitchenRoom'
 import LivingRoom from './rooms/LivingRoom'
 import BedroomRoom from './rooms/BedroomRoom'
 import BathroomRoom from './rooms/BathroomRoom'
+import PetShop from './PetShop'
+import TicTacToe from './games/TicTacToe'
+import Checkers from './games/Checkers'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ROOMS = [
@@ -119,22 +122,73 @@ export default function PetRoom({ user, onClose }) {
   const [transition, setTransition] = useState(false)
   const [justFed, setJustFed]   = useState(false)
   const [toast, setToast]       = useState(null)
+  const [showShop, setShowShop] = useState(false)
+  const [showGame, setShowGame] = useState(null) // 'tictactoe' | 'checkers'
+  const [dbLoaded, setDbLoaded] = useState(false)
   const storageKey = `pet_${user?.id || 'guest'}`
+  const saveTimerRef = useRef(null)
 
-  // ── Load / save pet state ──────────────────────────────────────────────────
+  // ── Load pet state (Supabase first, localStorage fallback) ────────────────
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        setPet(calcDecay(parsed)) // apply offline decay
-      }
-    } catch { /* ignore */ }
-  }, [storageKey])
+    if (!user?.id) return
+    const loadPet = async () => {
+      try {
+        const { data } = await supabase.rpc('get_or_create_pet', {
+          p_child_id: user.id,
+          p_family_id: user.family_id,
+        })
+        if (data && data.length > 0) {
+          const row = data[0]
+          const fromDb = {
+            hunger:      row.hunger,
+            happiness:   row.happiness,
+            cleanliness: row.cleanliness,
+            energy:      row.energy,
+            foodCount:   row.food_basic,
+            foodPremium: row.food_premium,
+            toyCount:    row.toy_basic,
+            toyPremium:  row.toy_premium,
+            ownedOutfits: row.owned_outfits || ['default'],
+            activeOutfit: row.active_outfit || 'default',
+            lastUpdated: new Date(row.last_updated).getTime(),
+          }
+          setPet(calcDecay(fromDb))
+          setDbLoaded(true)
+          return
+        }
+      } catch { /* fallback to localStorage */ }
+      // localStorage fallback
+      try {
+        const saved = localStorage.getItem(storageKey)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          setPet(calcDecay(parsed))
+        }
+      } catch { /* ignore */ }
+    }
+    loadPet()
+  }, [user?.id, user?.family_id, storageKey])
 
+  // ── Save pet state (debounced: Supabase + localStorage) ──────────────────
   useEffect(() => {
     try { localStorage.setItem(storageKey, JSON.stringify(pet)) } catch { /* ignore */ }
-  }, [pet, storageKey])
+    if (!user?.id || !dbLoaded) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      supabase.rpc('update_pet_stats', {
+        p_child_id:     user.id,
+        p_hunger:       Math.round(pet.hunger),
+        p_happiness:    Math.round(pet.happiness),
+        p_cleanliness:  Math.round(pet.cleanliness),
+        p_energy:       Math.round(pet.energy),
+        p_food_basic:   pet.foodCount,
+        p_food_premium: pet.foodPremium || 0,
+        p_toy_basic:    pet.toyCount,
+        p_toy_premium:  pet.toyPremium || 0,
+      }).catch(() => {})
+    }, 3000)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [pet, storageKey, user?.id, dbLoaded])
 
   // ── Passive decay every 30s ────────────────────────────────────────────────
   useEffect(() => {
@@ -218,6 +272,48 @@ export default function PetRoom({ user, onClose }) {
     setTimeout(() => setPetAnim(null), 900)
   }, [])
 
+  const handleGameWin = useCallback((bonusHappiness = 15) => {
+    setPet(p => ({ ...p, happiness: clamp(p.happiness + bonusHappiness), lastUpdated: Date.now() }))
+    showToast(`Перемога! 🎉 +${bonusHappiness} радість`)
+    setShowGame(null)
+  }, [])
+
+  const handleBuyItem = useCallback(async (item) => {
+    const { data, error } = await supabase.rpc('buy_pet_item', {
+      p_child_id: user.id,
+      p_item_id: item.id,
+    })
+    if (error) {
+      if (error.message?.includes('insufficient_points')) showToast('Недостатньо балів 😿')
+      else showToast('Помилка покупки')
+      return false
+    }
+    // Refresh inventory from DB
+    const { data: rows } = await supabase.rpc('get_or_create_pet', {
+      p_child_id: user.id, p_family_id: user.family_id,
+    })
+    if (rows?.[0]) {
+      const row = rows[0]
+      setPet(p => ({
+        ...p,
+        foodCount:   row.food_basic,
+        foodPremium: row.food_premium,
+        toyCount:    row.toy_basic,
+        toyPremium:  row.toy_premium,
+        ownedOutfits: row.owned_outfits || ['default'],
+        activeOutfit: row.active_outfit || 'default',
+      }))
+    }
+    showToast(`Куплено: ${item.name} ${item.emoji}`)
+    return true
+  }, [user?.id, user?.family_id])
+
+  const handleEquipOutfit = useCallback(async (outfitId) => {
+    await supabase.rpc('equip_pet_outfit', { p_child_id: user.id, p_outfit_id: outfitId }).catch(() => {})
+    setPet(p => ({ ...p, activeOutfit: outfitId }))
+    showToast('Образ змінено! ✨')
+  }, [user?.id])
+
   // ── Room change transition ─────────────────────────────────────────────────
   const changeRoom = (id) => {
     if (id === room) return
@@ -233,6 +329,25 @@ export default function PetRoom({ user, onClose }) {
     <div className="fixed inset-0 z-50 bg-black flex flex-col overflow-hidden"
          style={{ fontFamily: "'Nunito', sans-serif" }}>
 
+      {/* ── Shop overlay ── */}
+      {showShop && (
+        <PetShop
+          user={user}
+          pet={pet}
+          onBuy={handleBuyItem}
+          onEquip={handleEquipOutfit}
+          onClose={() => setShowShop(false)}
+        />
+      )}
+
+      {/* ── Mini-game overlay ── */}
+      {showGame === 'tictactoe' && (
+        <TicTacToe onWin={handleGameWin} onClose={() => setShowGame(null)} />
+      )}
+      {showGame === 'checkers' && (
+        <Checkers onWin={handleGameWin} onClose={() => setShowGame(null)} />
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-700 safe-top">
         <button onClick={onClose}
@@ -240,7 +355,10 @@ export default function PetRoom({ user, onClose }) {
           ←
         </button>
         <div className="text-white font-black text-lg tracking-wide">🐾 Мій питомець</div>
-        <div className="w-9" />
+        <button onClick={() => setShowShop(true)}
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white text-lg active:scale-90">
+          🛍️
+        </button>
       </div>
 
       {/* ── Status bars ── */}
@@ -258,7 +376,9 @@ export default function PetRoom({ user, onClose }) {
         {/* Room background */}
         <div className={`absolute inset-0 transition-opacity duration-180 ${transition ? 'opacity-0' : 'opacity-100'}`}>
           {room === 'kitchen'  && <KitchenRoom  onFeedPet={handleFeed}        foodCount={pet.foodCount} petState={mood}/>}
-          {room === 'living'   && <LivingRoom   onPlayToy={handlePlay}         toyCount={pet.toyCount}  petMood={mood}/>}
+          {room === 'living'   && <LivingRoom   onPlayToy={handlePlay} toyCount={pet.toyCount} petMood={mood}
+                                                onPlayTicTacToe={() => setShowGame('tictactoe')}
+                                                onPlayCheckers={() => setShowGame('checkers')}/>}
           {room === 'bedroom'  && <BedroomRoom  onSleep={handleSleep}                                   petState={mood}/>}
           {room === 'bathroom' && <BathroomRoom onBrushTeeth={handleBrushTeeth} onBath={handleBath}     cleanlinessLevel={pet.cleanliness}/>}
         </div>

@@ -1179,6 +1179,8 @@ export default function ParentDashboard() {
         total_points_earned: (child.total_points_earned || 0) + taskPoints,
       }).eq('id', childId)
     }
+    // Reward pet food when task approved (fire-and-forget)
+    supabase.rpc('reward_pet_food', { p_child_id: childId, p_amount: 1 }).catch(() => {})
     await supabase.from('activity_feed').insert({
       family_id: user.family_id, child_id: childId,
       event_type: 'task_approved',

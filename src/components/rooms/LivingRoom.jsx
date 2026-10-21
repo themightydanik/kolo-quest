@@ -2,7 +2,7 @@ import React from 'react'
 
 // Living Room SVG — kawaii flat style
 // Interactive: TV, toys, bookshelf
-export default function LivingRoom({ onPlayToy, toyCount, petMood }) {
+export default function LivingRoom({ onPlayToy, toyCount, petMood, onPlayTicTacToe, onPlayCheckers }) {
   return (
     <svg viewBox="0 0 390 600" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <defs>
@@ -194,6 +194,18 @@ export default function LivingRoom({ onPlayToy, toyCount, petMood }) {
         <circle key={i} cx={188 + (i%2)*9} cy={385 + Math.floor(i/2)*7} r="2.5"
           fill="#555" transform="rotate(-8 185 370)"/>
       ))}
+
+      {/* ── Game board (tic-tac-toe & checkers buttons) ── */}
+      <g onClick={onPlayTicTacToe} style={{ cursor: 'pointer' }}>
+        <rect x="12" y="390" width="68" height="68" rx="14" fill="#6C63FF" opacity="0.9"/>
+        <text x="46" y="422" textAnchor="middle" fontSize="22">❌</text>
+        <text x="46" y="448" textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">Хрестики</text>
+      </g>
+      <g onClick={onPlayCheckers} style={{ cursor: 'pointer' }}>
+        <rect x="12" y="468" width="68" height="68" rx="14" fill="#2ECC71" opacity="0.9"/>
+        <text x="46" y="500" textAnchor="middle" fontSize="22">♟️</text>
+        <text x="46" y="526" textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">Шашки</text>
+      </g>
     </svg>
   )
 }
