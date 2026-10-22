@@ -1259,8 +1259,25 @@ export default function ParentDashboard() {
     { id: 'profile', label: 'Профіль', emoji: '👤' },
   ]
 
+  const todayDay = new Date().getDay()
+  const dayLabelsGlobal = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+
+  const isDueTodayTask = (task) => {
+    if (!task.is_recurring) return false
+    const days = task.recurring_days
+    if (!days || days.length === 0) {
+      if (task.recurrence_type === 'daily') return true
+      if (task.recurrence_type === 'weekdays') return todayDay >= 1 && todayDay <= 5
+      if (task.recurrence_type === 'weekends') return todayDay === 0 || todayDay === 6
+      return true
+    }
+    return days.includes(todayDay)
+  }
+
   const pendingTasks = tasks.filter(t => t.status === 'pending_approval')
-  const activeTasks = tasks.filter(t => t.status === 'active' && !t.is_recurring)
+  const regularActiveTasks = tasks.filter(t => t.status === 'active' && !t.is_recurring)
+  const recurringDueToday = tasks.filter(t => t.is_recurring && t.status === 'active' && isDueTodayTask(t))
+  const activeTasks = [...regularActiveTasks, ...recurringDueToday]
   const recurringTasks = tasks.filter(t => t.is_recurring)
   const doneTasks = tasks.filter(t => t.status === 'done')
 
@@ -1549,12 +1566,16 @@ export default function ParentDashboard() {
                     <div className="space-y-2 opacity-80">
                       {doneTasks.slice(0, 20).map(task => {
                         const child = children.find(c => c.id === task.assigned_to)
+                        const doneAt = task.updated_at ? new Date(task.updated_at) : null
+                        const dateStr = doneAt ? doneAt.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' }) : ''
+                        const timeStr = doneAt ? doneAt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) : ''
                         return (
                           <div key={task.id} className="bg-white rounded-2xl p-3 shadow-sm">
                             <div className="flex justify-between items-center">
                               <div>
                                 <div className="font-black text-gray-700 text-sm">{task.title}</div>
                                 <div className="text-xs text-gray-400">{child?.avatar_emoji} {child?.display_name}</div>
+                                {doneAt && <div className="text-xs text-gray-400 mt-0.5">{dateStr} · {timeStr}</div>}
                               </div>
                               <span className="text-green-500 font-black text-sm">✅ +{task.points}⭐</span>
                             </div>
@@ -1579,14 +1600,20 @@ export default function ParentDashboard() {
                 <div className="space-y-3">
                   {recurringTasks.map(task => {
                     const child = children.find(c => c.id === task.assigned_to)
-                    const dayLabels = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
-                    const activeDays = task.recurring_days || [1,2,3,4,5]
+                    const scheduledDays = task.recurring_days && task.recurring_days.length > 0
+                      ? task.recurring_days
+                      : (task.recurrence_type === 'weekdays' ? [1,2,3,4,5]
+                        : task.recurrence_type === 'weekends' ? [0,6]
+                        : [0,1,2,3,4,5,6])
+                    const dueToday = scheduledDays.includes(todayDay)
                     return (
-                      <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-blue-400">
+                      <div key={task.id}
+                        className={`rounded-2xl p-4 shadow-sm border-l-4 ${dueToday ? 'bg-violet-50 border-violet-400' : 'bg-white border-blue-200'}`}>
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <span className="bg-violet-100 text-violet-700 font-black text-xs px-2 py-0.5 rounded-full">{child?.avatar_emoji} {child?.display_name}</span>
+                              {dueToday && <span className="text-xs bg-violet-200 text-violet-700 font-bold px-2 py-0.5 rounded-full">📅 сьогодні</span>}
                             </div>
                             <div className="font-black text-gray-800">{task.title}</div>
                             <div className="text-sm text-orange-500 font-bold mt-0.5">⭐ {task.points}</div>
@@ -1597,12 +1624,24 @@ export default function ParentDashboard() {
                           </div>
                         </div>
                         <div className="flex gap-1">
-                          {dayLabels.map((d, i) => (
-                            <div key={i}
-                              className={`flex-1 py-1 rounded-lg text-center font-black text-xs ${activeDays.includes(i) ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                              {d}
-                            </div>
-                          ))}
+                          {dayLabelsGlobal.map((d, i) => {
+                            const isScheduled = scheduledDays.includes(i)
+                            const isToday = i === todayDay
+                            return (
+                              <div key={i}
+                                className={`flex-1 py-1 rounded-lg text-center font-black text-xs relative
+                                  ${isScheduled && isToday
+                                    ? 'bg-violet-600 text-white ring-2 ring-violet-400 ring-offset-1'
+                                    : isScheduled
+                                      ? 'bg-blue-400 text-white'
+                                      : isToday
+                                        ? 'bg-gray-200 text-gray-500'
+                                        : 'bg-gray-100 text-gray-400'
+                                  }`}>
+                                {d}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )

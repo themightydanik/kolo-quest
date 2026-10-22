@@ -99,7 +99,7 @@ export default function TicTacToe({ onWin, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-70 flex flex-col items-center justify-center bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900"
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900" style={{ zIndex: 70 }}
          style={{ fontFamily: "'Nunito', sans-serif" }}>
 
       {/* Header */}

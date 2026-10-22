@@ -203,7 +203,7 @@ export default function Checkers({ onWin, onClose }) {
   const BOARD_SIZE = 8
 
   return (
-    <div className="fixed inset-0 z-70 flex flex-col bg-gradient-to-b from-emerald-900 via-teal-900 to-cyan-900"
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-b from-emerald-900 via-teal-900 to-cyan-900" style={{ zIndex: 70 }}
          style={{ fontFamily: "'Nunito', sans-serif" }}>
 
       {/* Header */}

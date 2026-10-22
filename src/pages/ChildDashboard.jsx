@@ -431,19 +431,38 @@ export default function ChildDashboard() {
     { id: 'profile', label: 'Профіль', emoji: '👤' },
   ]
 
-  const activeTasks = tasks.filter(t => t.status === 'active')
+  const today = new Date().getDay() // 0=Sun, 1=Mon...
+  const dayLabels = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+
+  // Helper: is this recurring task scheduled for today?
+  const isDueToday = (task) => {
+    if (!task.is_recurring) return false
+    const days = task.recurring_days
+    if (!days || days.length === 0) {
+      // Fallback: recurrence_type
+      if (task.recurrence_type === 'daily') return true
+      if (task.recurrence_type === 'weekdays') return today >= 1 && today <= 5
+      if (task.recurrence_type === 'weekends') return today === 0 || today === 6
+      return true // default daily
+    }
+    return days.includes(today)
+  }
+
   const pendingTasks = tasks.filter(t => t.status === 'pending_approval')
   const doneTasks = tasks.filter(t => t.status === 'done')
-  const recurringTasks = tasks.filter(t => t.is_recurring && t.status === 'active')
-  const mandatoryTasks = tasks.filter(t => t.is_mandatory && t.status === 'active')
+  const recurringTasks = tasks.filter(t => t.is_recurring)
+  // Active non-recurring tasks
+  const regularActiveTasks = tasks.filter(t => !t.is_recurring && t.status === 'active')
+  // Recurring tasks due today that are still active (not yet done/pending)
+  const recurringDueToday = tasks.filter(t => t.is_recurring && t.status === 'active' && isDueToday(t))
+  // Combined active list: regular + recurring due today
+  const activeTasks = [...regularActiveTasks, ...recurringDueToday]
+  const mandatoryTasks = activeTasks.filter(t => t.is_mandatory)
 
   const level = getLevel(totalPointsEarned)
   const levelProgress = getLevelProgress(totalPointsEarned)
 
   const currencySymbol = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł' }[familyConfig?.currency || 'UAH'] || '₴'
-
-  const today = new Date().getDay() // 0=Sun, 1=Mon...
-  const dayLabels = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-100 to-pink-100">
@@ -571,7 +590,7 @@ export default function ChildDashboard() {
 
             {taskSubTab === 'active' && (
               <>
-                {tasks.filter(t => !t.is_recurring).length === 0 && (
+                {activeTasks.length === 0 && pendingTasks.length === 0 && doneTasks.length === 0 && (
                   <div className="text-center py-16">
                     <div className="text-6xl mb-4">🌈</div>
                     <p className="text-xl font-bold text-gray-400">{t.noTasksTitle || 'Завдань поки нема'}</p>
@@ -593,14 +612,42 @@ export default function ChildDashboard() {
                   </div>
                 )}
 
-                {activeTasks.length > 0 && (
+                {/* Recurring due today — shown as banner in active tab */}
+                {recurringDueToday.length > 0 && (
+                  <div>
+                    <h2 className="text-base font-black text-violet-700 mb-3 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-violet-500 inline-block animate-pulse" />
+                      🔄 Сьогодні потрібно виконати
+                    </h2>
+                    <div className="space-y-3">
+                      {recurringDueToday.map(task => (
+                        <div key={task.id} className="bg-violet-50 border-2 border-violet-300 rounded-2xl p-4 shadow-sm">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">{task.emoji || '🔄'}</span>
+                              <div className="font-black text-gray-800">{task.title}</div>
+                            </div>
+                            <span className="text-orange-500 font-black text-sm">+{task.points} ⭐</span>
+                          </div>
+                          <div className="text-xs text-violet-500 font-bold mb-2">📅 Сьогоднішнє регулярне завдання</div>
+                          <button onClick={() => handleCompleteClick(task)}
+                            className="w-full gradient-purple text-white font-black py-2.5 rounded-xl text-sm active:scale-95 transition-all">
+                            🐾 Я виконав!
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {regularActiveTasks.filter(t => !t.is_mandatory).length > 0 && (
                   <div>
                     <h2 className="text-base font-black text-gray-700 mb-3 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
                       {t.activeTasks || 'Активні завдання'}
                     </h2>
                     <div className="space-y-3">
-                      {activeTasks.map(task => (
+                      {regularActiveTasks.filter(t => !t.is_mandatory).map(task => (
                         <TaskCard key={task.id} task={task} childView onComplete={handleCompleteClick} />
                       ))}
                     </div>
@@ -672,47 +719,73 @@ export default function ChildDashboard() {
 
                 <div className="space-y-3">
                   {recurringTasks.map(task => {
-                    // completions count from title/metadata if available
-                    const completions = task.completions_count || 0
+                    const scheduledDays = task.recurring_days && task.recurring_days.length > 0
+                      ? task.recurring_days
+                      : (task.recurrence_type === 'weekdays' ? [1,2,3,4,5]
+                        : task.recurrence_type === 'weekends' ? [0,6]
+                        : [0,1,2,3,4,5,6])
+                    const dueToday = scheduledDays.includes(today)
+                    const doneAt = task.updated_at ? new Date(task.updated_at) : null
                     return (
-                      <div key={task.id} className="bg-white rounded-2xl p-4 shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">🔄</span>
-                            <div className="font-black text-gray-800">{task.title}</div>
+                      <div key={task.id}
+                        className={`rounded-2xl p-4 shadow-sm border-2 ${dueToday && task.status === 'active' ? 'bg-violet-50 border-violet-300' : dueToday && task.status === 'done' ? 'bg-green-50 border-green-200' : 'bg-white border-transparent'}`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-xl flex-shrink-0">{task.emoji || '🔄'}</span>
+                            <div className="font-black text-gray-800 truncate">{task.title}</div>
                           </div>
-                          <div className="text-right">
-                            {completions > 0 && (
-                              <div className="text-xs text-gray-400 font-semibold">{completions} виконань</div>
-                            )}
-                          </div>
+                          <span className="text-orange-500 font-black text-sm ml-2 flex-shrink-0">+{task.points} ⭐</span>
                         </div>
-                        <div className="text-xs text-gray-500 font-semibold mb-2">
-                          {task.recurrence_type === 'daily' ? 'щодня' : task.recurrence_type === 'weekdays' ? 'будні' : task.recurrence_type === 'weekends' ? 'вихідні' : 'щодня'} · ⭐{task.points}
-                        </div>
-                        {/* Day chips */}
-                        <div className="flex gap-1 mb-3">
+                        {/* Day chips — highlight scheduled days; pulse today if scheduled */}
+                        <div className="flex gap-1 my-3">
                           {dayLabels.map((d, i) => {
+                            const isScheduled = scheduledDays.includes(i)
                             const isToday = i === today
                             return (
                               <div key={i}
-                                className={`flex-1 py-1.5 rounded-lg text-center font-black text-xs transition-all ${isToday ? 'gradient-purple text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                className={`flex-1 py-1.5 rounded-lg text-center font-black text-[10px] transition-all relative
+                                  ${isScheduled && isToday
+                                    ? 'gradient-purple text-white ring-2 ring-violet-400 ring-offset-1'
+                                    : isScheduled
+                                      ? 'bg-violet-200 text-violet-700'
+                                      : isToday
+                                        ? 'bg-gray-200 text-gray-500'
+                                        : 'bg-gray-100 text-gray-300'
+                                  }`}>
                                 {d}
+                                {isScheduled && isToday && (
+                                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full" />
+                                )}
                               </div>
                             )
                           })}
                         </div>
+                        {dueToday && task.status === 'active' && (
+                          <div className="text-violet-600 font-bold text-xs mb-2">📅 Потрібно виконати сьогодні!</div>
+                        )}
                         {task.status === 'done' && (
-                          <div className="text-green-500 font-black text-sm">✅ Виконано сьогодні</div>
+                          <div>
+                            <div className="text-green-600 font-black text-sm">✅ Виконано сьогодні</div>
+                            {doneAt && (
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {doneAt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </div>
                         )}
                         {task.status === 'pending_approval' && (
                           <div className="text-yellow-500 font-black text-sm">⏳ На перевірці у батьків</div>
                         )}
-                        {task.status === 'active' && (
+                        {task.status === 'active' && dueToday && (
                           <button onClick={() => handleCompleteClick(task)}
                             className="mt-1 w-full gradient-purple text-white font-black py-2.5 rounded-xl text-sm active:scale-95 transition-all">
                             🐾 Я виконав!
                           </button>
+                        )}
+                        {task.status === 'active' && !dueToday && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            Наступний день: {dayLabels[scheduledDays.find(d => d > today) ?? scheduledDays[0]]}
+                          </div>
                         )}
                       </div>
                     )
