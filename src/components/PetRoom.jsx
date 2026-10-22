@@ -69,7 +69,7 @@ function StatusBar({ emoji, value, color }) {
 function PetCat({ onPet, petAnim }) {
   const { RiveComponent } = useRive({
     src: '/cat.riv',
-    stateMachines: 'State Machine 1',
+    stateMachine: 'State Machine 1',
     autoplay: true,
   })
 
