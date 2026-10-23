@@ -19,6 +19,11 @@ AS $$
 DECLARE
   v_count INTEGER;
 BEGIN
+  -- Only reset recurring tasks that were completed on a PREVIOUS day.
+  -- Tasks with last_completed_date = today are either pending_approval or done
+  -- for today and must NOT be reset until tomorrow.
+  -- Tasks with last_completed_date IS NULL and status = 'pending_approval' are
+  -- currently being reviewed by parent — never reset those either.
   UPDATE tasks
   SET
     status = 'active',
@@ -26,10 +31,8 @@ BEGIN
   WHERE
     is_recurring = true
     AND status IN ('done', 'pending_approval')
-    AND (
-      last_completed_date IS NULL
-      OR last_completed_date < CURRENT_DATE
-    );
+    AND last_completed_date IS NOT NULL        -- never reset if date not yet set
+    AND last_completed_date < CURRENT_DATE;    -- only reset if completed before today
 
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;

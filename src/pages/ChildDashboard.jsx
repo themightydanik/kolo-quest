@@ -299,11 +299,18 @@ export default function ChildDashboard() {
   const handleCountdownConfirm = async () => {
     const task = countdownTask
     setCountdownTask(null)
-    await supabase.from('tasks').update({
+    const updatePayload = {
       status: 'pending_approval',
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    }).eq('id', task.id)
+    }
+    // For recurring tasks: set last_completed_date so reset_recurring_tasks()
+    // doesn't immediately flip it back to active (it only resets tasks where
+    // last_completed_date IS NULL or < today)
+    if (task.is_recurring) {
+      updatePayload.last_completed_date = new Date().toISOString().slice(0, 10)
+    }
+    await supabase.from('tasks').update(updatePayload).eq('id', task.id)
     // Log to feed
     await supabase.from('activity_feed').insert({
       family_id: user.family_id,
