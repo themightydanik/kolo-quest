@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { getOfferings, purchasePackage, restorePurchases, ENTITLEMENT_FAMILY } from '../lib/purchases'
+import { supabase } from '../lib/supabase'
 
 const FEATURES = [
   { emoji: '👧', text: 'Необмежена кількість дітей' },
@@ -11,34 +12,62 @@ const FEATURES = [
   { emoji: '📊', text: 'Детальна статистика' },
 ]
 
-export default function PaywallModal({ onClose, onSuccess, userId }) {
+// Starts (or confirms) the 7-day trial for this family
+async function startTrial(userId) {
+  if (!userId) return false
+  try {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('family_id')
+      .eq('id', userId)
+      .single()
+
+    const familyId = userData?.family_id
+    if (!familyId) return false
+
+    const { error } = await supabase.rpc('start_family_trial', { p_family_id: familyId })
+    if (error) {
+      // Fallback: direct update (if RPC not deployed yet)
+      await supabase
+        .from('families')
+        .update({ trial_started_at: new Date().toISOString() })
+        .eq('id', familyId)
+        .is('trial_started_at', null)
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+export default function PaywallModal({ onClose, onSuccess, onTrialStart, userId, trialExpired, trialDaysLeft }) {
   const [offerings, setOfferings] = useState(null)
   const [selectedPkg, setSelectedPkg] = useState(null)
   const [loading, setLoading] = useState(true)
   const [purchasing, setPurchasing] = useState(false)
   const [restoring, setRestoring] = useState(false)
+  const [startingTrial, setStartingTrial] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     getOfferings(userId).then(o => {
       setOfferings(o)
-      // Pre-select annual if available (better value)
       const pkgs = o?.current?.availablePackages || []
-      const annual = pkgs.find(p => p.packageType === 'ANNUAL' || p.identifier === '$rc_annual')
       const monthly = pkgs.find(p => p.packageType === 'MONTHLY' || p.identifier === '$rc_monthly')
-      setSelectedPkg(annual || monthly || pkgs[0] || null)
+      const annual = pkgs.find(p => p.packageType === 'ANNUAL' || p.identifier === '$rc_annual')
+      setSelectedPkg(monthly || annual || pkgs[0] || null)
       setLoading(false)
     })
   }, [userId])
 
   const packages = offerings?.current?.availablePackages || []
 
-  // Fallback prices when RC not configured yet
+  // Fallback prices when RC not configured yet — $3.50/month
   const FALLBACK_PACKAGES = [
     { identifier: '$rc_monthly', packageType: 'MONTHLY', _isFallback: true,
-      rcBillingProduct: { currentPrice: { formattedPrice: '$4.99' }, title: 'Family Plan Monthly' } },
+      rcBillingProduct: { currentPrice: { formattedPrice: '$3.50' }, title: 'Family Plan Monthly' } },
     { identifier: '$rc_annual', packageType: 'ANNUAL', _isFallback: true,
-      rcBillingProduct: { currentPrice: { formattedPrice: '$39.99' }, title: 'Family Plan Annual' } },
+      rcBillingProduct: { currentPrice: { formattedPrice: '$29.99' }, title: 'Family Plan Annual' } },
   ]
 
   const displayPackages = packages.length > 0 ? packages : FALLBACK_PACKAGES
@@ -85,16 +114,31 @@ export default function PaywallModal({ onClose, onSuccess, userId }) {
     }
   }
 
+  const handleStartTrial = async () => {
+    setStartingTrial(true)
+    setError('')
+    try {
+      const ok = await startTrial(userId)
+      if (ok) {
+        onTrialStart?.()
+        onClose()
+      } else {
+        setError('Не вдалося розпочати пробний період.')
+      }
+    } catch {
+      setError('Помилка. Спробуй ще раз.')
+    } finally {
+      setStartingTrial(false)
+    }
+  }
+
   const getLabel = (pkg) => {
     if (pkg.packageType === 'ANNUAL' || pkg.identifier?.includes('annual')) return 'Річний'
-    if (pkg.packageType === 'MONTHLY' || pkg.identifier?.includes('monthly')) return 'Місячний'
-    return pkg.identifier
+    return 'Місячний'
   }
 
   const getSavingsLabel = (pkg) => {
-    if (pkg.packageType === 'ANNUAL' || pkg.identifier?.includes('annual')) {
-      return '🔥 Знижка 33%'
-    }
+    if (pkg.packageType === 'ANNUAL' || pkg.identifier?.includes('annual')) return '🔥 Знижка 29%'
     return null
   }
 
@@ -106,9 +150,20 @@ export default function PaywallModal({ onClose, onSuccess, userId }) {
         {/* Header */}
         <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-pink-500 px-6 pt-8 pb-6 text-center text-white relative">
           <button onClick={onClose} className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl">✕</button>
-          <div className="text-5xl mb-3">👑</div>
-          <div className="font-black text-2xl">Family Plan</div>
-          <div className="text-violet-200 text-sm mt-1">Необмежені можливості для всієї сім'ї</div>
+          <div className="text-5xl mb-3">{trialExpired ? '⏰' : '👑'}</div>
+          <div className="font-black text-2xl">
+            {trialExpired ? 'Пробний період завершено' : 'Family Plan'}
+          </div>
+          <div className="text-violet-200 text-sm mt-1">
+            {trialExpired
+              ? 'Оформи підписку, щоб продовжити використання'
+              : 'Необмежені можливості для всієї сім\'ї'}
+          </div>
+          {trialDaysLeft > 0 && (
+            <div className="mt-2 bg-white/20 rounded-2xl px-4 py-1.5 inline-block">
+              <span className="font-black">⏱ {trialDaysLeft} {trialDaysLeft === 1 ? 'день' : trialDaysLeft < 5 ? 'дні' : 'днів'} залишилось</span>
+            </div>
+          )}
         </div>
 
         <div className="p-6">
@@ -165,11 +220,19 @@ export default function PaywallModal({ onClose, onSuccess, userId }) {
             </div>
           )}
 
-          {/* CTA */}
+          {/* CTA — Subscribe */}
           <button onClick={handlePurchase} disabled={purchasing || !selectedPkg || loading}
             className="w-full bg-gradient-to-r from-violet-600 to-pink-500 text-white font-black py-4 rounded-2xl text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50">
             {purchasing ? '⏳ Обробка...' : '🚀 Оформити підписку'}
           </button>
+
+          {/* Trial button — only show when trial not yet expired (i.e. from onboarding) */}
+          {!trialExpired && (
+            <button onClick={handleStartTrial} disabled={startingTrial}
+              className="w-full mt-3 bg-gray-100 text-gray-700 font-black py-4 rounded-2xl text-base active:scale-95 transition-all disabled:opacity-50 border border-gray-200">
+              {startingTrial ? '⏳...' : '🎁 Спробувати 7 днів безкоштовно'}
+            </button>
+          )}
 
           <div className="flex items-center gap-2 mt-3 justify-center">
             <button onClick={handleRestore} disabled={restoring}
@@ -181,7 +244,7 @@ export default function PaywallModal({ onClose, onSuccess, userId }) {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-3">
-            Підписка поновлюється автоматично. Керування у налаштуваннях акаунту.
+            Підписка $3.50/місяць. Поновлюється автоматично. Керування у налаштуваннях акаунту.
           </p>
         </div>
       </div>

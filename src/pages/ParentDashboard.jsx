@@ -800,7 +800,7 @@ function ChildProfile({ child, tasks, feedItems, parentId, onFeedReacted, onBack
   )
 }
 
-// ── Onboarding (4 steps, shown when parent has 0 children) ────────────────────
+// ── Onboarding (5 steps, shown when parent has 0 children) ────────────────────
 function OnboardingFlow({ familyId, user, onComplete }) {
   const [step, setStep] = useState(0)
   // Step 0: Add child (reuse AddChildModal inline)
@@ -818,10 +818,15 @@ function OnboardingFlow({ familyId, user, onComplete }) {
   const [monoJarId, setMonoJarId] = useState('')
   const [configSaving, setConfigSaving] = useState(false)
 
+  // Step 3: plan choice
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planError, setPlanError] = useState('')
+
   const STEPS = [
     { emoji: '👶', title: 'Додай дитину', desc: 'Створи перший акаунт для дитини' },
     { emoji: '📋', title: 'Бібліотека завдань', desc: 'Ознайомся зі стандартними завданнями' },
     { emoji: '💰', title: 'Кишенькові гроші', desc: 'Налаштуй обмін зірок на гроші' },
+    { emoji: '🚀', title: 'Обери план', desc: 'Підписка або 7 днів безкоштовно' },
     { emoji: '🎉', title: 'Все готово!', desc: 'Починайте квест разом!' },
   ]
 
@@ -854,7 +859,34 @@ function OnboardingFlow({ familyId, user, onComplete }) {
       await supabase.from('family_configs').insert(payload)
     }
     setConfigSaving(false)
-    setStep(3)
+    setStep(3)  // → plan choice step
+  }
+
+  const handleStartTrial = async () => {
+    setPlanError('')
+    setPlanLoading(true)
+    try {
+      const { error } = await supabase.rpc('start_family_trial', { p_family_id: familyId })
+      if (error) {
+        // Fallback: direct update if RPC not deployed
+        await supabase
+          .from('families')
+          .update({ trial_started_at: new Date().toISOString() })
+          .eq('id', familyId)
+          .is('trial_started_at', null)
+      }
+      setStep(4)  // → done
+    } catch {
+      setPlanError('Не вдалося розпочати. Спробуй ще раз.')
+    } finally {
+      setPlanLoading(false)
+    }
+  }
+
+  const handleSubscribe = () => {
+    // Go to done step — PaywallModal will open from the dashboard
+    // The parent can also subscribe from settings later
+    setStep(4)
   }
 
   const currSym = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł' }[currency] || '₴'
@@ -985,8 +1017,46 @@ function OnboardingFlow({ familyId, user, onComplete }) {
               </div>
             )}
 
-            {/* STEP 3 — Done */}
+            {/* STEP 3 — Plan choice: subscribe or trial */}
             {step === 3 && (
+              <div className="space-y-4">
+                <p className="text-gray-600 font-semibold text-sm text-center">
+                  Обери як хочеш продовжити:
+                </p>
+
+                {/* Subscribe option */}
+                <button onClick={handleSubscribe}
+                  className="w-full gradient-purple text-white font-black py-5 rounded-2xl text-base active:scale-95 shadow-lg flex flex-col items-center gap-1">
+                  <span className="text-xl">💳 Оформити підписку</span>
+                  <span className="text-violet-200 text-sm font-semibold">$3.50 / місяць</span>
+                </button>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-gray-400 text-xs font-bold">або</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+
+                {/* Trial option */}
+                <button onClick={handleStartTrial} disabled={planLoading}
+                  className="w-full bg-amber-50 border-2 border-amber-200 text-amber-800 font-black py-5 rounded-2xl text-base active:scale-95 flex flex-col items-center gap-1 disabled:opacity-50">
+                  <span className="text-xl">🎁 Спробувати 7 днів безкоштовно</span>
+                  <span className="text-amber-600 text-sm font-semibold">Без прив'язки карти</span>
+                </button>
+
+                {planError && (
+                  <p className="text-red-500 font-semibold text-sm text-center">{planError}</p>
+                )}
+
+                <p className="text-xs text-gray-400 text-center">
+                  Після 7 днів потрібна підписка $3.50/міс для продовження
+                </p>
+              </div>
+            )}
+
+            {/* STEP 4 — Done */}
+            {step === 4 && (
               <div className="text-center space-y-4 py-4">
                 <div className="text-6xl">🎉</div>
                 <p className="font-black text-gray-800 text-xl">Все налаштовано!</p>
@@ -1101,7 +1171,14 @@ export default function ParentDashboard() {
   // Freemium + RevenueCat
   const [gateType, setGateType] = useState(null) // null | 'child' | 'task' | 'recurring' | 'reward'
   const [showPaywall, setShowPaywall] = useState(false)
-  const { isPremium, refresh: refreshSubscription } = useSubscription(user?.id)
+  const {
+    isPremium,
+    trialActive,
+    trialExpired,
+    trialDaysLeft,
+    needsPaywall,
+    refresh: refreshSubscription,
+  } = useSubscription(user?.id)
 
   // Profile
   const [profileEmoji, setProfileEmoji] = useState(user.avatar_url || user.avatar_emoji || '👨')
@@ -1336,12 +1413,26 @@ export default function ParentDashboard() {
           onUpgrade={() => { setGateType(null); setShowPaywall(true) }}
         />
       )}
-      {/* Paywall (RevenueCat) */}
-      {showPaywall && (
+      {/* Hard paywall — trial expired, must subscribe */}
+      {needsPaywall && (
         <PaywallModal
           userId={user?.id}
+          trialExpired={true}
+          trialDaysLeft={0}
+          onClose={() => {}} // Cannot close — hard block
+          onSuccess={() => refreshSubscription()}
+          onTrialStart={() => {}}
+        />
+      )}
+      {/* Soft paywall — user clicked upgrade */}
+      {showPaywall && !needsPaywall && (
+        <PaywallModal
+          userId={user?.id}
+          trialExpired={trialExpired}
+          trialDaysLeft={trialDaysLeft}
           onClose={() => setShowPaywall(false)}
           onSuccess={() => { setShowPaywall(false); refreshSubscription() }}
+          onTrialStart={() => { setShowPaywall(false); refreshSubscription() }}
         />
       )}
 
@@ -1984,11 +2075,27 @@ export default function ParentDashboard() {
           </>
         )}
 
+      {/* Trial countdown banner */}
+      {!isPremium && trialActive && trialDaysLeft > 0 && (
+        <div className="mx-4 mb-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+          <div>
+            <div className="text-amber-800 font-black text-sm">
+              ⏱ Пробний період: {trialDaysLeft} {trialDaysLeft === 1 ? 'день' : trialDaysLeft < 5 ? 'дні' : 'днів'}
+            </div>
+            <div className="text-amber-600 text-xs">Після завершення потрібна підписка</div>
+          </div>
+          <button onClick={() => setShowPaywall(true)}
+            className="bg-amber-500 text-white font-black text-xs px-3 py-2 rounded-xl">
+            $3.50/міс →
+          </button>
+        </div>
+      )}
+
       {/* Freemium usage bar — at the bottom so it doesn't distract from main content */}
-      {!isPremium && (
+      {!isPremium && !needsPaywall && (
         <div className="mx-4 mb-4 bg-white rounded-2xl shadow-sm px-4 py-3">
           <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
-            <span>🆓 Безкоштовний план</span>
+            <span>🆓 {trialActive ? `Пробний період` : 'Безкоштовний план'}</span>
             <button onClick={() => setShowPaywall(true)} className="text-violet-600 font-black">Upgrade ✨</button>
           </div>
           <div className="space-y-1.5">
