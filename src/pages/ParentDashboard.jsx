@@ -1164,11 +1164,15 @@ export default function ParentDashboard() {
     if (task?.is_recurring) {
       // For recurring tasks: set done + record last_completed_date so reset_recurring_tasks
       // knows NOT to reset it until the next calendar day
-      await supabase.rpc('approve_task_recurring', { p_task_id: taskId })
-        .catch(() =>
-          // Fallback if RPC not yet deployed: plain update without last_completed_date
-          supabase.from('tasks').update({ status: 'done', updated_at: new Date().toISOString() }).eq('id', taskId)
-        )
+      const { error: rpcErr } = await supabase.rpc('approve_task_recurring', { p_task_id: taskId })
+      if (rpcErr) {
+        // Fallback if RPC not yet deployed: plain update with last_completed_date
+        await supabase.from('tasks').update({
+          status: 'done',
+          last_completed_date: new Date().toISOString().slice(0, 10),
+          updated_at: new Date().toISOString(),
+        }).eq('id', taskId)
+      }
     } else {
       await supabase.from('tasks').update({ status: 'done', updated_at: new Date().toISOString() }).eq('id', taskId)
     }
