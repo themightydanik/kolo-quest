@@ -109,6 +109,19 @@ export function useSubscription(userId) {
         return
       }
 
+      // 1b. Promo code in localStorage — grants premium without purchase
+      try {
+        const promoKey = `promo_activated_${userId}`
+        const promo = localStorage.getItem(promoKey)
+        if (promo && promo !== 'invalid') {
+          setIsPremium(true)
+          setTrialActive(false)
+          setTrialExpired(false)
+          setTrialDaysLeft(TRIAL_DAYS)
+          return
+        }
+      } catch { /* ignore */ }
+
       // 2. Check RevenueCat entitlement
       await initPurchases(userId)
       const active = await checkEntitlement(userId)

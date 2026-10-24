@@ -1185,6 +1185,26 @@ export default function ParentDashboard() {
   const [profileName, setProfileName] = useState(user.display_name || '')
   const [profileSaving, setProfileSaving] = useState(false)
 
+  // Promo code
+  const PROMO_CODES = ['KOLO2025', 'QUEST7777', 'TESTPREM'] // add more as needed
+  const PROMO_STORAGE_KEY = `promo_activated_${user?.id}`
+  const [promoInput, setPromoInput] = useState('')
+  const [promoStatus, setPromoStatus] = useState(() => {
+    try { return localStorage.getItem(`promo_activated_${user?.id}`) || null } catch { return null }
+  })
+  const handlePromoSubmit = () => {
+    const code = promoInput.trim().toUpperCase()
+    if (PROMO_CODES.includes(code)) {
+      try { localStorage.setItem(PROMO_STORAGE_KEY, code) } catch {}
+      setPromoStatus(code)
+      setPromoInput('')
+      refreshSubscription()
+    } else {
+      setPromoStatus('invalid')
+      setTimeout(() => setPromoStatus(prev => prev === 'invalid' ? null : prev), 2000)
+    }
+  }
+
   // Family config edit
   const [pocketEnabled, setPocketEnabled] = useState(false)
   const [currency, setCurrency] = useState('UAH')
@@ -1237,6 +1257,7 @@ export default function ParentDashboard() {
 
   // ── Task approve / reject ─────────────────────────────────────────────────
   const handleApproveTask = async (taskId, childId, taskPoints) => {
+    if (needsPaywall) { setShowPaywall(true); return }
     const task = tasks.find(t => t.id === taskId)
     if (task?.is_recurring) {
       // For recurring tasks: set done + record last_completed_date so reset_recurring_tasks
@@ -1376,8 +1397,9 @@ export default function ParentDashboard() {
   const canAddRecurring = isPremium || recurringTaskCount < plan.tasks_recurring
   const canAddReward   = isPremium || rewards.length < plan.rewards
 
-  // Called instead of setShowAddTask(true) — checks limit first
+  // Called instead of setShowAddTask(true) — checks paywall/limit first
   const tryAddTask = (isRecurring = false) => {
+    if (needsPaywall) { setShowPaywall(true); return }
     if (isRecurring) {
       if (!canAddRecurring) { setGateType('recurring'); return }
     } else {
@@ -1385,8 +1407,8 @@ export default function ParentDashboard() {
     }
     setShowAddTask(true)
   }
-  const tryAddReward  = () => { if (!canAddReward)  { setGateType('reward');  return }; setShowAddReward(true) }
-  const tryAddChild   = () => { if (!canAddChild)   { setGateType('child');   return }; setShowAddChild(true) }
+  const tryAddReward  = () => { if (needsPaywall) { setShowPaywall(true); return }; if (!canAddReward)  { setGateType('reward');  return }; setShowAddReward(true) }
+  const tryAddChild   = () => { if (needsPaywall) { setShowPaywall(true); return }; if (!canAddChild)   { setGateType('child');   return }; setShowAddChild(true) }
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-100 to-pink-100">
@@ -1413,22 +1435,11 @@ export default function ParentDashboard() {
           onUpgrade={() => { setGateType(null); setShowPaywall(true) }}
         />
       )}
-      {/* Hard paywall — trial expired, must subscribe */}
-      {needsPaywall && (
+      {/* Paywall — shown when needsPaywall OR user clicked upgrade */}
+      {(showPaywall || needsPaywall) && (
         <PaywallModal
           userId={user?.id}
-          trialExpired={true}
-          trialDaysLeft={0}
-          onClose={() => {}} // Cannot close — hard block
-          onSuccess={() => refreshSubscription()}
-          onTrialStart={() => {}}
-        />
-      )}
-      {/* Soft paywall — user clicked upgrade */}
-      {showPaywall && !needsPaywall && (
-        <PaywallModal
-          userId={user?.id}
-          trialExpired={trialExpired}
+          trialExpired={trialExpired || needsPaywall}
           trialDaysLeft={trialDaysLeft}
           onClose={() => setShowPaywall(false)}
           onSuccess={() => { setShowPaywall(false); refreshSubscription() }}
@@ -2060,6 +2071,42 @@ export default function ParentDashboard() {
                       placeholder="jar/..." />
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Promo code */}
+            <div className="bg-white rounded-2xl p-5 shadow-sm">
+              <h3 className="font-black text-gray-800 mb-1">🎟️ Промокод</h3>
+              {promoStatus && promoStatus !== 'invalid' ? (
+                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                  <span className="text-green-500 text-xl">✅</span>
+                  <div>
+                    <div className="font-black text-green-700 text-sm">Промокод активовано!</div>
+                    <div className="text-green-600 text-xs">Преміум доступ увімкнено · {promoStatus}</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-400 text-xs mb-3">Є промокод? Введи його тут для активації преміуму</p>
+                  <div className="flex gap-2">
+                    <input
+                      value={promoInput}
+                      onChange={e => setPromoInput(e.target.value.toUpperCase())}
+                      onKeyDown={e => e.key === 'Enter' && handlePromoSubmit()}
+                      placeholder="KOLO2025"
+                      className={`flex-1 border-2 rounded-xl px-4 py-2.5 font-black text-sm tracking-widest focus:outline-none uppercase ${
+                        promoStatus === 'invalid' ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-violet-400'
+                      }`}
+                    />
+                    <button onClick={handlePromoSubmit} disabled={!promoInput.trim()}
+                      className="gradient-purple text-white font-black px-4 py-2.5 rounded-xl disabled:opacity-40 active:scale-95">
+                      →
+                    </button>
+                  </div>
+                  {promoStatus === 'invalid' && (
+                    <p className="text-red-500 text-xs font-semibold mt-1.5">❌ Невірний промокод</p>
+                  )}
+                </>
               )}
             </div>
 
