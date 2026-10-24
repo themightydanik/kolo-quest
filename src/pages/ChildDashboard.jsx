@@ -6,6 +6,52 @@ import TaskCard from '../components/TaskCard'
 import FeedItem, { AvatarDisplay } from '../components/FeedItem'
 import AvatarPicker from '../components/AvatarPicker'
 import PetRoom from '../components/PetRoom'
+import CatSprite from '../components/CatSprite'
+
+// ─── Pet preview (reads from localStorage, no extra network call) ─────────────
+function usePetPreview(userId) {
+  const [petSnap, setPetSnap] = useState(null)
+  useEffect(() => {
+    if (!userId) return
+    try {
+      const raw = localStorage.getItem(`pet_${userId}`)
+      if (raw) {
+        const p = JSON.parse(raw)
+        // Apply simple time-decay so the preview reflects current state
+        const mins = Math.min((Date.now() - (p.lastUpdated || Date.now())) / 60000, 120)
+        const clamp = v => Math.max(0, Math.min(100, v))
+        const decayed = {
+          ...p,
+          hunger:      clamp(p.hunger      - 0.5 * mins),
+          happiness:   clamp(p.happiness   - 0.3 * mins),
+          cleanliness: clamp(p.cleanliness - 0.2 * mins),
+          energy:      clamp(p.energy      - 0.25 * mins),
+        }
+        setPetSnap(decayed)
+      }
+    } catch { /* ignore */ }
+  }, [userId])
+  return petSnap
+}
+
+function petCatState(p) {
+  if (!p) return 'idle'
+  if (p.energy      < 20) return 'sleep'
+  if (p.hunger      < 20) return 'hangry'
+  if (p.cleanliness < 20) return 'sad'
+  if (p.happiness   < 30) return 'sad'
+  if (p.happiness   > 80 && p.hunger > 70) return 'happy'
+  return 'idle'
+}
+
+function petNeedsAttention(p) {
+  if (!p) return null
+  if (p.hunger      < 30) return { emoji: '🍖', text: 'Котик голодний!' }
+  if (p.energy      < 30) return { emoji: '😴', text: 'Котик хоче спати' }
+  if (p.cleanliness < 30) return { emoji: '🛁', text: 'Котик брудний' }
+  if (p.happiness   < 40) return { emoji: '😿', text: 'Котик сумує' }
+  return null
+}
 
 // ─── Level system ────────────────────────────────────────────────────────────
 const LEVELS = [
@@ -212,6 +258,7 @@ export default function ChildDashboard() {
   const [showPurchaseHistory, setShowPurchaseHistory] = useState(false)
   const [showPetRoom, setShowPetRoom] = useState(false)
   const [pointsDelta, setPointsDelta] = useState(null)
+  const petSnap = usePetPreview(user?.id)
   const deltaTimer = useRef(null)
 
   // Profile edit
@@ -523,16 +570,52 @@ export default function ChildDashboard() {
             </h1>
             <p className="text-violet-200 text-sm font-semibold">{level.emoji} {level.name}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end gap-1.5">
+            {/* Top-right controls */}
+            <div className="flex items-center gap-1.5">
+              <LanguageSwitcher light />
+              <button onClick={logout}
+                className="text-violet-200 hover:text-white text-xs font-bold bg-white/10 px-2 py-1 rounded-full transition-colors">
+                {t.logout || 'Вийти'}
+              </button>
+            </div>
+            {/* Pet mini-card */}
             <button onClick={() => setShowPetRoom(true)}
-              className="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-white/20 active:scale-90 transition-all">
-              <span className="text-xl leading-none">🐾</span>
-              <span className="text-[9px] text-violet-200 font-bold mt-0.5">Пет</span>
-            </button>
-            <LanguageSwitcher light />
-            <button onClick={logout}
-              className="text-violet-200 hover:text-white text-sm font-bold bg-white/10 px-3 py-1.5 rounded-full transition-colors">
-              {t.logout || 'Вийти'}
+              className="flex items-center gap-2 bg-white/15 hover:bg-white/25 active:scale-95 transition-all rounded-2xl px-2.5 py-1.5 border border-white/20">
+              <div className="relative">
+                <CatSprite state={petCatState(petSnap)} size={44} />
+                {/* Attention dot */}
+                {petNeedsAttention(petSnap) && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full border-2 border-violet-600 animate-bounce" />
+                )}
+              </div>
+              <div className="flex flex-col items-start min-w-0">
+                <span className="text-white font-black text-[11px] leading-tight">
+                  {petNeedsAttention(petSnap)?.text || 'Мій котик 🐱'}
+                </span>
+                {petSnap ? (
+                  <div className="flex gap-1 mt-0.5">
+                    {[
+                      { e: '🍖', v: petSnap.hunger },
+                      { e: '😸', v: petSnap.happiness },
+                      { e: '✨', v: petSnap.cleanliness },
+                    ].map(({ e, v }) => (
+                      <div key={e} className="flex items-center gap-0.5">
+                        <span className="text-[9px] leading-none">{e}</span>
+                        <div className="w-8 h-1 bg-white/20 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${v}%`,
+                              background: v > 60 ? '#4ade80' : v > 30 ? '#facc15' : '#f87171'
+                            }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-violet-200 text-[9px]">Торкнись щоб відкрити</span>
+                )}
+              </div>
             </button>
           </div>
         </div>
@@ -563,6 +646,28 @@ export default function ChildDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Pet attention banner — shown when pet needs care */}
+      {petNeedsAttention(petSnap) && (() => {
+        const need = petNeedsAttention(petSnap)
+        return (
+          <button onClick={() => setShowPetRoom(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 active:bg-amber-100 transition-all">
+            {/* Bouncing cat */}
+            <div className="relative flex-shrink-0" style={{ animation: 'petBounce 1.2s ease-in-out infinite' }}>
+              <CatSprite state={petCatState(petSnap)} size={52} />
+              <div className="absolute -top-1 -right-1 text-base" style={{ animation: 'petBounce 0.8s ease-in-out infinite alternate' }}>
+                {need.emoji}
+              </div>
+            </div>
+            <div className="flex-1 text-left">
+              <div className="font-black text-amber-800 text-sm">{need.text}</div>
+              <div className="text-amber-600 text-xs font-semibold">Зайди до котика та допоможи!</div>
+            </div>
+            <div className="text-amber-500 font-black text-lg">→</div>
+          </button>
+        )
+      })()}
 
       {/* Tabs */}
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur shadow-sm overflow-x-auto">
