@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useRive } from '@rive-app/react-canvas'
 import { supabase } from '../lib/supabase'
+import CatSprite from './CatSprite'
 import KitchenRoom from './rooms/KitchenRoom'
 import LivingRoom from './rooms/LivingRoom'
 import BedroomRoom from './rooms/BedroomRoom'
@@ -8,6 +8,10 @@ import BathroomRoom from './rooms/BathroomRoom'
 import PetShop from './PetShop'
 import TicTacToe from './games/TicTacToe'
 import Checkers from './games/Checkers'
+import FeedGame from './games/FeedGame'
+import BrushGame from './games/BrushGame'
+import BathGame from './games/BathGame'
+import SleepGame from './games/SleepGame'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ROOMS = [
@@ -43,11 +47,13 @@ function calcDecay(pet) {
   }
 }
 
-function petMoodFromStats(pet) {
-  if (pet.energy      < 20) return 'sleepy'
+// Derive cat animation state from pet stats
+function catStateFromStats(pet) {
+  if (pet.energy      < 20) return 'sleep'
   if (pet.hunger      < 20) return 'hangry'
-  if (pet.cleanliness < 20) return 'crying'
-  if (pet.happiness   < 20) return 'angry'
+  if (pet.cleanliness < 20) return 'sad'
+  if (pet.happiness   < 30) return 'sad'
+  if (pet.happiness   > 80 && pet.hunger > 70) return 'happy'
   return 'idle'
 }
 
@@ -65,188 +71,19 @@ function StatusBar({ emoji, value, color }) {
   )
 }
 
-// ── Rive cat — renders at the floor level ─────────────────────────────────────
-function PetCat({ onPet, petAnim }) {
-  const { RiveComponent } = useRive({
-    src: '/cat.riv',
-    stateMachine: 'State Machine 1',
-    autoplay: true,
-  })
-
-  return (
-    <div className="relative w-full h-full cursor-pointer select-none" onClick={onPet}>
-      <RiveComponent className="w-full h-full" />
-      {petAnim && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 text-4xl pointer-events-none select-none"
-          style={{ animation: 'floatUp 0.9s ease-out forwards' }}>
-          {petAnim}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Brush teeth mini-game: swipe the toothbrush ───────────────────────────────
-function BrushGame({ onDone }) {
-  const [brushX, setBrushX] = useState(60)
-  const [strokes, setStrokes] = useState(0)
-  const [done, setDone] = useState(false)
-  const dragging = useRef(false)
-  const lastX = useRef(0)
-  const containerRef = useRef(null)
-
-  const needed = 8
-
-  const handleStart = (e) => {
-    dragging.current = true
-    lastX.current = e.touches ? e.touches[0].clientX : e.clientX
-  }
-  const handleMove = (e) => {
-    if (!dragging.current) return
-    const x = e.touches ? e.touches[0].clientX : e.clientX
-    const dx = x - lastX.current
-    lastX.current = x
-    setBrushX(prev => Math.max(10, Math.min(280, prev + dx)))
-    if (Math.abs(dx) > 3) {
-      setStrokes(s => {
-        const next = s + 1
-        if (next >= needed && !done) {
-          setDone(true)
-          setTimeout(onDone, 600)
-        }
-        return next
-      })
-    }
-  }
-  const handleEnd = () => { dragging.current = false }
-
-  const progress = Math.min(strokes / needed, 1)
-
-  return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-black/60"
-      style={{ zIndex: 65 }}
-      onMouseMove={handleMove} onMouseUp={handleEnd}
-      onTouchMove={handleMove} onTouchEnd={handleEnd}>
-      <div ref={containerRef}
-        className="bg-white rounded-3xl p-6 mx-4 shadow-2xl w-80 select-none">
-        <div className="text-center text-2xl font-black mb-1">🦷 Чистимо зуби!</div>
-        <div className="text-center text-sm text-gray-500 mb-4">Води щіткою туди-сюди</div>
-
-        {/* Progress */}
-        <div className="bg-gray-100 rounded-full h-3 mb-5 overflow-hidden">
-          <div className="h-full rounded-full transition-all"
-            style={{ width: `${progress * 100}%`, background: 'linear-gradient(90deg,#4FC3F7,#00B8D9)' }} />
-        </div>
-
-        {/* Brush area */}
-        <div className="relative h-24 bg-gradient-to-b from-blue-50 to-blue-100 rounded-2xl overflow-hidden mb-4"
-          onMouseDown={handleStart} onTouchStart={handleStart}
-          style={{ touchAction: 'none', cursor: 'ew-resize' }}>
-          {/* Teeth */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1">
-            {[...Array(7)].map((_, i) => (
-              <div key={i} className="w-6 h-8 bg-white rounded-b-lg border border-gray-200" />
-            ))}
-          </div>
-          {/* Toothbrush */}
-          <div className="absolute top-4 transition-none"
-            style={{ left: brushX, transform: 'translateX(-50%)' }}>
-            <div className="text-3xl" style={{ transform: 'rotate(90deg)' }}>🪥</div>
-          </div>
-          {done && (
-            <div className="absolute inset-0 flex items-center justify-center text-2xl bg-blue-200/60 rounded-2xl">
-              ✨ Блищить!
-            </div>
-          )}
-        </div>
-
-        <div className="text-center text-xs text-gray-400">{Math.round(progress * 100)}%</div>
-      </div>
-    </div>
-  )
-}
-
-// ── Feed animation overlay ────────────────────────────────────────────────────
-function FeedAnimation({ onDone }) {
-  const [phase, setPhase] = useState(0) // 0=show, 1=eating, 2=done
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 300)
-    const t2 = setTimeout(() => setPhase(2), 1200)
-    const t3 = setTimeout(onDone, 1800)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
-  }, [])
-
-  return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-end"
-      style={{ paddingBottom: '120px', zIndex: 20 }}>
-      {phase === 0 && (
-        <div className="text-6xl" style={{ animation: 'dropDown 0.3s ease-out' }}>🍖</div>
-      )}
-      {phase === 1 && (
-        <div className="flex flex-col items-center gap-2">
-          <div className="text-4xl" style={{ animation: 'shake 0.2s infinite' }}>😸</div>
-          <div className="text-5xl">🍖</div>
-        </div>
-      )}
-      {phase === 2 && (
-        <div className="flex flex-col items-center gap-1">
-          <div className="text-4xl">😸</div>
-          <div className="text-2xl font-black text-white bg-green-500 rounded-full px-4 py-1">+25 ситість!</div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Bath animation overlay ────────────────────────────────────────────────────
-function BathAnimation({ onDone }) {
-  const [bubbles] = useState(() =>
-    [...Array(12)].map((_, i) => ({
-      x: 20 + Math.random() * 60,
-      delay: Math.random() * 0.8,
-      size: 16 + Math.random() * 14,
-    }))
-  )
-
-  useEffect(() => {
-    const t = setTimeout(onDone, 2200)
-    return () => clearTimeout(t)
-  }, [])
-
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 20 }}>
-      {bubbles.map((b, i) => (
-        <div key={i} className="absolute rounded-full border-2 border-blue-300 bg-blue-100/40"
-          style={{
-            left: `${b.x}%`, bottom: '80px',
-            width: b.size, height: b.size,
-            animation: `rise ${1.5 + b.delay}s ease-out ${b.delay}s forwards`,
-          }} />
-      ))}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-3xl font-black text-white bg-cyan-500 rounded-2xl px-5 py-3 shadow-lg"
-          style={{ animation: 'fadeInScale 0.4s ease-out' }}>
-          🛁 Купаємося!
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── PetRoom ───────────────────────────────────────────────────────────────────
 export default function PetRoom({ user, onClose }) {
   const [room, setRoom] = useState('kitchen')
   const [pet, setPet] = useState(DEFAULT_PET)
-  const [petAnim, setPetAnim]     = useState(null)
+  const [petAnim, setPetAnim]       = useState(null)   // floating emoji
+  const [catState, setCatState]     = useState('idle') // CatSprite state
+  const [catAction, setCatAction]   = useState(null)   // one-shot action
   const [transition, setTransition] = useState(false)
-  const [toast, setToast]         = useState(null)
-  const [showShop, setShowShop]   = useState(false)
-  const [showGame, setShowGame]   = useState(null)
-  const [showBrush, setShowBrush] = useState(false)
-  const [showFeed, setShowFeed]   = useState(false)
-  const [showBath, setShowBath]   = useState(false)
-  const [dbLoaded, setDbLoaded]   = useState(false)
+  const [toast, setToast]           = useState(null)
+  const [showShop, setShowShop]     = useState(false)
+  const [showGame, setShowGame]     = useState(null)   // 'tictactoe'|'checkers'
+  const [activeGame, setActiveGame] = useState(null)   // 'feed'|'brush'|'bath'|'sleep'
+  const [dbLoaded, setDbLoaded]     = useState(false)
   const storageKey = `pet_${user?.id || 'guest'}`
   const saveTimerRef = useRef(null)
 
@@ -261,7 +98,7 @@ export default function PetRoom({ user, onClose }) {
         })
         if (data?.length > 0) {
           const r = data[0]
-          setPet(calcDecay({
+          const loaded = calcDecay({
             hunger: r.hunger, happiness: r.happiness,
             cleanliness: r.cleanliness, energy: r.energy,
             foodCount: r.food_basic, foodPremium: r.food_premium,
@@ -269,14 +106,20 @@ export default function PetRoom({ user, onClose }) {
             ownedOutfits: r.owned_outfits || ['default'],
             activeOutfit: r.active_outfit || 'default',
             lastUpdated: new Date(r.last_updated).getTime(),
-          }))
+          })
+          setPet(loaded)
+          setCatState(catStateFromStats(loaded))
           setDbLoaded(true)
           return
         }
       } catch { /* ignore */ }
       try {
         const saved = localStorage.getItem(storageKey)
-        if (saved) setPet(calcDecay(JSON.parse(saved)))
+        if (saved) {
+          const p = calcDecay(JSON.parse(saved))
+          setPet(p)
+          setCatState(catStateFromStats(p))
+        }
       } catch { /* ignore */ }
     }
     load()
@@ -301,30 +144,43 @@ export default function PetRoom({ user, onClose }) {
 
   // ── Passive decay every 30s ───────────────────────────────────────────────
   useEffect(() => {
-    const id = setInterval(() => setPet(p => calcDecay(p)), 30_000)
+    const id = setInterval(() => {
+      setPet(p => {
+        const next = calcDecay(p)
+        setCatState(catStateFromStats(next))
+        return next
+      })
+    }, 30_000)
     return () => clearInterval(id)
   }, [])
-
-  const mood = petMoodFromStats(pet)
 
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2200)
   }
 
+  const triggerCatReact = (state, duration = 1800) => {
+    setCatState(state)
+    setTimeout(() => setCatState(catStateFromStats(pet)), duration)
+  }
+
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleFeed = useCallback(() => {
     if (pet.foodCount <= 0) { showToast('Їжа закінчилась! Зароби більше балів 🐾'); return }
-    setShowFeed(true)
+    setActiveGame('feed')
   }, [pet.foodCount])
 
-  const confirmFed = useCallback(() => {
+  const confirmFed = useCallback((points = 25) => {
     setPet(p => ({
       ...p, hunger: clamp(p.hunger + 25), happiness: clamp(p.happiness + 5),
       foodCount: p.foodCount - 1, lastUpdated: Date.now(),
     }))
-    setShowFeed(false)
-  }, [])
+    setActiveGame(null)
+    triggerCatReact('happy', 2000)
+    setPetAnim('🍖')
+    setTimeout(() => setPetAnim(null), 900)
+    showToast(`+25 ситість! 😋`)
+  }, [pet])
 
   const handlePlay = useCallback(() => {
     if (pet.toyCount <= 0) { showToast('Іграшки закінчились! 🐾'); return }
@@ -332,43 +188,52 @@ export default function PetRoom({ user, onClose }) {
       ...p, happiness: clamp(p.happiness + 20), energy: clamp(p.energy - 10),
       toyCount: p.toyCount - 1, lastUpdated: Date.now(),
     }))
+    triggerCatReact('excited', 1800)
     setPetAnim('🎉')
     setTimeout(() => setPetAnim(null), 900)
     showToast('Пограли! 🎉 +20 радість')
   }, [pet.toyCount])
 
   const handleSleep = useCallback(() => {
+    setActiveGame('sleep')
+  }, [])
+
+  const confirmSlept = useCallback((points = 15) => {
     setPet(p => ({ ...p, energy: clamp(p.energy + 30), lastUpdated: Date.now() }))
+    setActiveGame(null)
+    triggerCatReact('happy', 2000)
     setPetAnim('💤')
     setTimeout(() => setPetAnim(null), 900)
     showToast('Солодкі сни! 💤 +30 енергія')
   }, [])
 
   const handleBrushTeeth = useCallback(() => {
-    setShowBrush(true)
+    setActiveGame('brush')
   }, [])
 
-  const confirmBrushed = useCallback(() => {
+  const confirmBrushed = useCallback((points = 20) => {
     setPet(p => ({
       ...p, cleanliness: clamp(p.cleanliness + 20), happiness: clamp(p.happiness + 5),
       lastUpdated: Date.now(),
     }))
-    setShowBrush(false)
+    setActiveGame(null)
+    triggerCatReact('happy', 2000)
     setPetAnim('✨')
     setTimeout(() => setPetAnim(null), 900)
     showToast('Зуби блищать! ✨ +20 чистота')
   }, [])
 
   const handleBath = useCallback(() => {
-    setShowBath(true)
+    setActiveGame('bath')
   }, [])
 
-  const confirmBathed = useCallback(() => {
+  const confirmBathed = useCallback((points = 20) => {
     setPet(p => ({
       ...p, cleanliness: clamp(p.cleanliness + 35), happiness: clamp(p.happiness - 5),
       lastUpdated: Date.now(),
     }))
-    setShowBath(false)
+    setActiveGame(null)
+    triggerCatReact('happy', 2500)
     setPetAnim('🚿')
     setTimeout(() => setPetAnim(null), 900)
     showToast('Чистий та пухнастий! 🛁 +35 чистота')
@@ -376,12 +241,14 @@ export default function PetRoom({ user, onClose }) {
 
   const handlePet = useCallback(() => {
     setPet(p => ({ ...p, happiness: clamp(p.happiness + 3), lastUpdated: Date.now() }))
+    triggerCatReact('pet', 1200)
     setPetAnim('❤️')
     setTimeout(() => setPetAnim(null), 900)
   }, [])
 
   const handleGameWin = useCallback((bonus = 15) => {
     setPet(p => ({ ...p, happiness: clamp(p.happiness + bonus), lastUpdated: Date.now() }))
+    triggerCatReact('excited', 2000)
     showToast(`Перемога! 🎉 +${bonus} радість`)
     setShowGame(null)
   }, [])
@@ -414,63 +281,52 @@ export default function PetRoom({ user, onClose }) {
     setTimeout(() => { setRoom(id); setTransition(false) }, 180)
   }
 
-  // Room floor y-position as % of the SVG viewBox (0-600)
-  // All rooms use y=420 as the floor line in a 390×600 viewBox
-  // The room renders at aspect ratio 390/600 ≈ 0.65 of container width
-  // Cat should sit with feet touching the floor line
-
-  // Determine which actions are available per room
+  // Room actions
   const roomActions = {
     kitchen:  [
-      { icon: '🍖', label: 'Годувати', action: handleFeed, disabled: pet.foodCount <= 0, badge: pet.foodCount },
+      { icon: '🍖', label: 'Годувати',  action: handleFeed,        disabled: pet.foodCount <= 0, badge: pet.foodCount },
     ],
     living:   [
-      { icon: '🎾', label: 'Іграшка', action: handlePlay, disabled: pet.toyCount <= 0, badge: pet.toyCount },
+      { icon: '🎾', label: 'Іграшка',   action: handlePlay,        disabled: pet.toyCount <= 0,  badge: pet.toyCount },
     ],
     bedroom:  [
-      { icon: '💤', label: 'Спати',   action: handleSleep },
+      { icon: '💤', label: 'Спати',     action: handleSleep },
     ],
     bathroom: [
-      { icon: '🦷', label: 'Зуби',    action: handleBrushTeeth },
-      { icon: '🛁', label: 'Купатись', action: handleBath },
+      { icon: '🦷', label: 'Зуби',      action: handleBrushTeeth },
+      { icon: '🛁', label: 'Купатись',  action: handleBath },
     ],
   }
 
-  const moodBubble = { hangry: '😾', sleepy: '😴', crying: '😿', angry: '😤' }[mood]
+  // Games accessible from living room only via room prop
+  const livingGames = room === 'living' ? [
+    { icon: '❌⭕', label: 'Хрестики',  action: () => setShowGame('tictactoe') },
+    { icon: '♟️',   label: 'Шашки',    action: () => setShowGame('checkers') },
+  ] : []
+
+  const allActions = [...(roomActions[room] || []), ...livingGames]
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col overflow-hidden"
       style={{ zIndex: 50, fontFamily: "'Nunito', sans-serif" }}>
 
-      {/* ── CSS animations ── */}
+      {/* ── CSS ── */}
       <style>{`
         @keyframes floatUp {
           0%   { transform: translateX(-50%) translateY(0) scale(1); opacity:1 }
           100% { transform: translateX(-50%) translateY(-80px) scale(1.3); opacity:0 }
         }
-        @keyframes shake {
-          0%,100% { transform: rotate(-5deg) }
-          50%      { transform: rotate(5deg) }
-        }
-        @keyframes rise {
-          0%   { transform: translateY(0) scale(1); opacity:0.8 }
-          100% { transform: translateY(-200px) scale(0.3); opacity:0 }
+        @keyframes pulseGlow {
+          0%,100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.4) }
+          50%      { box-shadow: 0 0 0 8px rgba(139,92,246,0) }
         }
         @keyframes fadeInScale {
           0%   { transform: scale(0.7); opacity:0 }
           100% { transform: scale(1); opacity:1 }
         }
-        @keyframes dropDown {
-          0%   { transform: translateY(-30px); opacity:0 }
-          100% { transform: translateY(0); opacity:1 }
-        }
-        @keyframes pulseGlow {
-          0%,100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.4) }
-          50%      { box-shadow: 0 0 0 8px rgba(139,92,246,0) }
-        }
       `}</style>
 
-      {/* ── Overlays ── */}
+      {/* ── Game overlays (full screen) ── */}
       {showShop && (
         <PetShop user={user} pet={pet} onBuy={handleBuyItem} onEquip={handleEquipOutfit} onClose={() => setShowShop(false)} />
       )}
@@ -480,7 +336,18 @@ export default function PetRoom({ user, onClose }) {
       {showGame === 'checkers' && (
         <Checkers onWin={handleGameWin} onClose={() => setShowGame(null)} />
       )}
-      {showBrush && <BrushGame onDone={confirmBrushed} />}
+      {activeGame === 'feed' && (
+        <FeedGame onDone={confirmFed} onClose={() => setActiveGame(null)} foodCount={pet.foodCount} />
+      )}
+      {activeGame === 'brush' && (
+        <BrushGame onDone={confirmBrushed} onClose={() => setActiveGame(null)} />
+      )}
+      {activeGame === 'bath' && (
+        <BathGame onDone={confirmBathed} onClose={() => setActiveGame(null)} />
+      )}
+      {activeGame === 'sleep' && (
+        <SleepGame onDone={confirmSlept} onClose={() => setActiveGame(null)} />
+      )}
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-violet-600 to-purple-700 safe-top flex-shrink-0">
@@ -527,50 +394,43 @@ export default function PetRoom({ user, onClose }) {
       <div className="flex-1 relative overflow-hidden">
         {/* Room background */}
         <div className={`absolute inset-0 transition-opacity duration-200 ${transition ? 'opacity-0' : 'opacity-100'}`}>
-          {room === 'kitchen'  && <KitchenRoom  onFeedPet={handleFeed} foodCount={pet.foodCount} petState={mood}/>}
-          {room === 'living'   && <LivingRoom   onPlayToy={handlePlay} toyCount={pet.toyCount} petMood={mood}
+          {room === 'kitchen'  && <KitchenRoom  onFeedPet={handleFeed} foodCount={pet.foodCount} petState={catState}/>}
+          {room === 'living'   && <LivingRoom   onPlayToy={handlePlay} toyCount={pet.toyCount} petMood={catState}
                                                 onPlayTicTacToe={() => setShowGame('tictactoe')}
                                                 onPlayCheckers={() => setShowGame('checkers')}/>}
-          {room === 'bedroom'  && <BedroomRoom  onSleep={handleSleep} petState={mood}/>}
+          {room === 'bedroom'  && <BedroomRoom  onSleep={handleSleep} petState={catState}/>}
           {room === 'bathroom' && <BathroomRoom onBrushTeeth={handleBrushTeeth} onBath={handleBath} cleanlinessLevel={pet.cleanliness}/>}
         </div>
 
-        {/* Cat — positioned at floor level
-            The SVG viewBox is 390×600; floor starts at y=420 = 70% height.
-            The cat container's bottom should sit at 70% from top of the room area.
-            Cat size: ~30% of room width, centered horizontally. */}
-        <div className="absolute left-0 right-0 flex justify-center pointer-events-none"
-          style={{ bottom: '0', paddingBottom: '70%', transform: 'translateY(50%)' }}>
-          {/* We want cat bottom at 70% of container height (floor line).
-              Use: position bottom at 30% of room (= 100% - 70%), subtract half cat height */}
-        </div>
+        {/* ── SVG Cat — sits at floor line (≈28% from bottom) ── */}
+        <div
+          className="absolute left-0 right-0 flex justify-center pointer-events-auto"
+          style={{ bottom: '28%' }}
+        >
+          <div className="relative" style={{ width: 140, height: 140 }}>
+            {/* Shadow */}
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-black/20"
+              style={{ width: '65%', height: 10, filter: 'blur(5px)' }} />
 
-        {/* Simpler: absolute, bottom calculated from floor line */}
-        {/* Floor is at y=420 in 600px SVG = 30% from bottom of SVG.
-            Room height = flex-1, which we can't know statically.
-            Use bottom: 28% to approximate floor position across phone sizes. */}
-        <div className="absolute left-0 right-0 flex justify-center"
-          style={{ bottom: '28%' }}>
-          <div className="relative pointer-events-auto"
-            style={{ width: '38vw', height: '38vw', maxWidth: 170, maxHeight: 170 }}>
-            <PetCat onPet={handlePet} petAnim={petAnim} />
-            {/* Mood bubble */}
-            {moodBubble && (
-              <div className="absolute -top-2 -right-2 text-2xl pointer-events-none"
-                style={{ animation: 'shake 1s infinite' }}>
-                {moodBubble}
+            {/* Cat */}
+            <CatSprite
+              state={catState}
+              action={catAction}
+              size={140}
+              onPet={handlePet}
+            />
+
+            {/* Floating anim emoji */}
+            {petAnim && (
+              <div
+                className="absolute top-0 left-1/2 text-3xl pointer-events-none select-none"
+                style={{ animation: 'floatUp 0.9s ease-out forwards' }}
+              >
+                {petAnim}
               </div>
             )}
-            {/* Shadow under cat */}
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-black/20"
-              style={{ width: '60%', height: 8, filter: 'blur(4px)' }} />
           </div>
         </div>
-
-        {/* Feed animation */}
-        {showFeed && <FeedAnimation onDone={confirmFed} />}
-        {/* Bath animation */}
-        {showBath && <BathAnimation onDone={confirmBathed} />}
 
         {/* Toast */}
         {toast && (
@@ -583,10 +443,10 @@ export default function PetRoom({ user, onClose }) {
 
       {/* ── Action buttons for current room ── */}
       <div className="bg-black/80 px-4 py-2.5 flex-shrink-0">
-        <div className="flex gap-2 justify-center">
-          {(roomActions[room] || []).map((act, i) => (
+        <div className="flex gap-2 justify-center flex-wrap">
+          {allActions.map((act, i) => (
             <button key={i} onClick={act.action} disabled={act.disabled}
-              className={`flex flex-col items-center gap-1 px-5 py-2.5 rounded-2xl font-black text-sm transition-all active:scale-90 relative
+              className={`flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl font-black text-sm transition-all active:scale-90 relative
                 ${act.disabled
                   ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                   : 'bg-violet-600 text-white shadow-lg'
@@ -603,7 +463,7 @@ export default function PetRoom({ user, onClose }) {
           ))}
           {/* Pet button always visible */}
           <button onClick={handlePet}
-            className="flex flex-col items-center gap-1 px-5 py-2.5 rounded-2xl font-black text-sm bg-pink-500 text-white shadow-lg active:scale-90">
+            className="flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl font-black text-sm bg-pink-500 text-white shadow-lg active:scale-90">
             <span className="text-xl leading-none">🐾</span>
             <span className="text-xs">Погладити</span>
           </button>

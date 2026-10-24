@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import CatSprite from '../CatSprite'
 
 const WIN_LINES = [
   [0,1,2],[3,4,5],[6,7,8],
@@ -18,56 +19,49 @@ function checkWinner(squares) {
 
 function getBestMove(squares, player) {
   const opponent = player === 'X' ? 'O' : 'X'
-  // Win immediately
   for (let i = 0; i < 9; i++) {
     if (!squares[i]) {
       const test = [...squares]; test[i] = player
       if (checkWinner(test)?.winner === player) return i
     }
   }
-  // Block opponent
   for (let i = 0; i < 9; i++) {
     if (!squares[i]) {
       const test = [...squares]; test[i] = opponent
       if (checkWinner(test)?.winner === opponent) return i
     }
   }
-  // Take center
   if (!squares[4]) return 4
-  // Take corner
   for (const c of [0,2,6,8]) { if (!squares[c]) return c }
-  // Take any
   for (let i = 0; i < 9; i++) { if (!squares[i]) return i }
   return -1
 }
 
 export default function TicTacToe({ onWin, onClose }) {
   const [squares, setSquares] = useState(Array(9).fill(null))
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true) // player = X, AI = O
-  const [result, setResult] = useState(null) // null | { winner, line }
+  const [isPlayerTurn, setIsPlayerTurn] = useState(true)
+  const [result, setResult] = useState(null)
   const [thinking, setThinking] = useState(false)
   const [scores, setScores] = useState({ player: 0, ai: 0 })
+  const [catState, setCatState] = useState('idle')
 
+  // Cat reacts to game events
   useEffect(() => {
-    if (!isPlayerTurn && !result) {
-      setThinking(true)
-      const timer = setTimeout(() => {
-        const move = getBestMove(squares, 'O')
-        if (move >= 0) {
-          const next = [...squares]; next[move] = 'O'
-          setSquares(next)
-          const r = checkWinner(next)
-          if (r) { setResult(r); if (r.winner === 'O') setScores(s => ({...s, ai: s.ai+1})) }
-          else setIsPlayerTurn(true)
-        }
-        setThinking(false)
-      }, 600)
-      return () => clearTimeout(timer)
+    if (result) {
+      if (result.winner === 'X') setCatState('sad')       // player wins → cat sad
+      else if (result.winner === 'O') setCatState('excited') // cat wins → cat excited
+      else setCatState('happy')                              // draw → neutral happy
+    } else if (thinking) {
+      setCatState('idle')  // thinking — focused
+    } else if (isPlayerTurn) {
+      setCatState('idle')
     }
-  }, [isPlayerTurn, squares, result])
+  }, [result, thinking, isPlayerTurn])
 
+  // Cat reacts when player makes a move
   const handleClick = (idx) => {
     if (!isPlayerTurn || squares[idx] || result || thinking) return
+    setCatState('hangry') // cat gets competitive when player moves
     const next = [...squares]; next[idx] = 'X'
     setSquares(next)
     const r = checkWinner(next)
@@ -79,10 +73,34 @@ export default function TicTacToe({ onWin, onClose }) {
     }
   }
 
+  useEffect(() => {
+    if (!isPlayerTurn && !result) {
+      setThinking(true)
+      const timer = setTimeout(() => {
+        const move = getBestMove(squares, 'O')
+        if (move >= 0) {
+          const next = [...squares]; next[move] = 'O'
+          setSquares(next)
+          const r = checkWinner(next)
+          if (r) {
+            setResult(r)
+            if (r.winner === 'O') setScores(s => ({...s, ai: s.ai+1}))
+          } else {
+            setIsPlayerTurn(true)
+            setCatState('idle')
+          }
+        }
+        setThinking(false)
+      }, 700)
+      return () => clearTimeout(timer)
+    }
+  }, [isPlayerTurn, squares, result])
+
   const reset = () => {
     setSquares(Array(9).fill(null))
     setIsPlayerTurn(true)
     setResult(null)
+    setCatState('idle')
   }
 
   const handleClose = () => {
@@ -92,20 +110,21 @@ export default function TicTacToe({ onWin, onClose }) {
 
   const getStatus = () => {
     if (result?.winner === 'X') return '🎉 Ти переміг!'
-    if (result?.winner === 'O') return '😿 Котик переміг'
-    if (result?.winner === 'draw') return '🤝 Нічия'
+    if (result?.winner === 'O') return '😼 Котик переміг!'
+    if (result?.winner === 'draw') return '🤝 Нічия!'
     if (thinking) return '🤔 Котик думає...'
     return isPlayerTurn ? '✏️ Твій хід (X)' : '⏳ Хід котика (O)'
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900" style={{ zIndex: 70 }}
-         style={{ fontFamily: "'Nunito', sans-serif" }}>
-
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-start bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900"
+      style={{ zIndex: 70 }}
+    >
       {/* Header */}
       <div className="w-full flex items-center justify-between px-4 py-3 bg-black/20">
         <button onClick={handleClose}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white text-lg active:scale-90">
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white text-xl active:scale-90">
           ←
         </button>
         <div className="text-white font-black text-lg">❌⭕ Хрестики-нулики</div>
@@ -115,9 +134,40 @@ export default function TicTacToe({ onWin, onClose }) {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
+      <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4 pb-4">
+
+        {/* Cat sprite — reacts to game state */}
+        <div className="relative">
+          <CatSprite
+            state={catState}
+            size={110}
+          />
+          {/* Speech bubble */}
+          {thinking && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-3 py-1 text-xs font-black text-purple-700 shadow whitespace-nowrap">
+              Хмм... 🤔
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0"
+                style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid white' }} />
+            </div>
+          )}
+          {result?.winner === 'O' && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 rounded-2xl px-3 py-1 text-xs font-black text-yellow-900 shadow whitespace-nowrap">
+              Я переміг! 😼
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0"
+                style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid #facc15' }} />
+            </div>
+          )}
+          {result?.winner === 'X' && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-3 py-1 text-xs font-black text-purple-700 shadow whitespace-nowrap">
+              Молодець... 😿
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0"
+                style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid white' }} />
+            </div>
+          )}
+        </div>
+
         {/* Status */}
-        <div className="text-white font-black text-xl text-center min-h-8">{getStatus()}</div>
+        <div className="text-white font-black text-lg text-center">{getStatus()}</div>
 
         {/* Board */}
         <div className="grid grid-cols-3 gap-3">
@@ -127,16 +177,18 @@ export default function TicTacToe({ onWin, onClose }) {
               <button
                 key={i}
                 onClick={() => handleClick(i)}
-                className={`w-24 h-24 rounded-2xl text-5xl font-black flex items-center justify-center
+                className={`w-22 h-22 rounded-2xl text-4xl font-black flex items-center justify-center
                   transition-all active:scale-90
                   ${isWinCell
                     ? 'bg-yellow-400 scale-105 shadow-lg shadow-yellow-400/40'
                     : sq
                       ? 'bg-white/20'
-                      : 'bg-white/10 hover:bg-white/20'
-                  }`}>
-                {sq === 'X' && <span className="text-blue-300">✕</span>}
-                {sq === 'O' && <span className="text-pink-300">○</span>}
+                      : 'bg-white/10 active:bg-white/25'
+                  }`}
+                style={{ width: 82, height: 82 }}
+              >
+                {sq === 'X' && <span className="text-blue-300" style={{ fontSize: 36 }}>✕</span>}
+                {sq === 'O' && <span className="text-pink-300" style={{ fontSize: 36 }}>○</span>}
               </button>
             )
           })}
@@ -144,10 +196,10 @@ export default function TicTacToe({ onWin, onClose }) {
 
         {/* Result actions */}
         {result && (
-          <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+          <div className="flex flex-col items-center gap-3 w-full max-w-xs mt-2">
             {result.winner === 'X' && (
-              <div className="bg-yellow-400/20 border border-yellow-400/50 rounded-2xl px-6 py-3 text-center">
-                <div className="text-yellow-300 font-black text-lg">+15 😸 радість котику!</div>
+              <div className="bg-yellow-400/20 border border-yellow-400/50 rounded-2xl px-6 py-2 text-center">
+                <div className="text-yellow-300 font-black">+15 😸 котик радіє за тебе!</div>
               </div>
             )}
             <button onClick={reset}
@@ -163,7 +215,7 @@ export default function TicTacToe({ onWin, onClose }) {
 
         {!result && (
           <div className="text-white/40 text-xs text-center">
-            Переможи котика і він стане щасливішим на 15 пунктів!
+            Переможи котика і він стане щасливішим!
           </div>
         )}
       </div>
